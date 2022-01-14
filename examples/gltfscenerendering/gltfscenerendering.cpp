@@ -383,7 +383,7 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer,
 */
 
 VulkanExample::VulkanExample() :
-	VulkanExampleBase(ENABLE_VALIDATION)
+	VulkanExampleBase(ENABLE_VALIDATION, SERVERWIDTH, SERVERHEIGHT)
 {
 	title		 = "glTF scene rendering";
 	camera.type	 = Camera::CameraType::firstperson;
@@ -391,6 +391,20 @@ VulkanExample::VulkanExample() :
 	camera.setPosition(glm::vec3(0.0f, 1.0f, 0.0f));
 	camera.setRotation(glm::vec3(0.0f, -90.0f, 0.0f));
 	camera.setPerspective(60.0f, (float) width / (float) height, 0.1f, 256.0f);
+
+	// Multiview setup
+	// Enable extension required for multiview
+	enabledDeviceExtensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+
+	// Reading device properties and features for multiview requires VK_KHR_get_physical_device_properties2 to be enabled
+	enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+	// Enable required extension features
+	physical_device_multiview_features = {
+		.sType	   = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR,
+		.multiview = VK_TRUE,
+	};
+	deviceCreatepNextChain = &physical_device_multiview_features;
 }
 
 VulkanExample::~VulkanExample()
@@ -399,12 +413,59 @@ VulkanExample::~VulkanExample()
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.matrices, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.textures, nullptr);
 	shaderData.buffer.destroy();
+
+	// Multiview destroyers
+	vkDestroyImageView(device, multiview_pass.colour.view, nullptr);
+	vkDestroyImage(device, multiview_pass.colour.image, nullptr);
+	vkFreeMemory(device, multiview_pass.colour.memory, nullptr);
+	vkDestroyImageView(device, multiview_pass.depth.view, nullptr);
+	vkDestroyImage(device, multiview_pass.depth.image, nullptr);
+	vkFreeMemory(device, multiview_pass.depth.memory, nullptr);
+
+	vkDestroyRenderPass(device, multiview_pass.renderpass, nullptr);
+	vkDestroySampler(device, multiview_pass.sampler, nullptr);
+	vkDestroyFramebuffer(device, multiview_pass.framebuffer, nullptr);
+
+	vkDestroySemaphore(device, multiview_pass.semaphore, nullptr);
+	for(uint32_t i = 0; i < multiview_pass.wait_fences.size(); i++)
+	{
+		vkDestroyFence(device, multiview_pass.wait_fences[i], nullptr);
+	}
 }
 
 void VulkanExample::getEnabledFeatures()
 {
 	enabledFeatures.samplerAnisotropy = deviceFeatures.samplerAnisotropy;
 }
+
+
+void VulkanExample::setup_multiview()
+{
+	uint32_t multiview_layers = 2;
+	
+	// Layered depth/stencil FBO setup
+	{
+		VkImageCreateInfo image_ci = {
+			.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.pNext = nullptr,
+			.flags = 0,
+			.imageType = VK_IMAGE_TYPE_2D,
+			.format = depthFormat,
+			.extent = {width, height, 1},
+		};
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
 
 void VulkanExample::buildCommandBuffers()
 {
@@ -815,6 +876,7 @@ void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
 	loadAssets();
+	setup_multiview();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();

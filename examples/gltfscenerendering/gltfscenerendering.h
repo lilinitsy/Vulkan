@@ -28,6 +28,13 @@
 
 #define ENABLE_VALIDATION false
 
+// Offloaded rendering attributes
+const uint32_t SERVERWIDTH	= 1920; // 512
+const uint32_t SERVERHEIGHT = 1080; // 512
+const uint32_t CLIENTWIDTH	= 1920;
+const uint32_t CLIENTHEIGHT = 1080;
+
+
 // Contains everything required to render a basic glTF scene in Vulkan
 // This class is heavily simplified (compared to glTF's feature set) but retains
 // the basic glTF structure
@@ -154,6 +161,8 @@ class VulkanExample : public VulkanExampleBase
 	struct ShaderData
 	{
 		vks::Buffer buffer;
+
+		// projection and view will each need to be 2 element arrays
 		struct Values
 		{
 			glm::mat4 projection;
@@ -172,6 +181,36 @@ class VulkanExample : public VulkanExampleBase
 		VkDescriptorSetLayout textures;
 	} descriptorSetLayouts;
 
+	// Imported stuff from multiview/multiview.cpp
+	struct MultiviewPass
+	{
+		struct FrameBufferAttachment
+		{
+			VkImage image;
+			VkDeviceMemory memory;
+			VkImageView view;
+		} colour, depth;
+		VkFramebuffer framebuffer;
+		VkRenderPass renderpass;
+		VkDescriptorImageInfo descriptor;
+		VkSampler sampler;
+		VkSemaphore semaphore;
+		std::vector<VkCommandBuffer> command_buffers;
+		std::vector<VkFence> wait_fences;
+	} multiview_pass;
+
+	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
+
+	// Camera and view properties
+	float eyeSeparation		= 0.08f;
+	const float focalLength = 0.5f;
+	const float fov			= 90.0f;
+	const float zNear		= 0.1f;
+	const float zFar		= 256.0f;
+
+	bool enable_multiview = true;
+
+
 	VulkanExample();
 	~VulkanExample();
 	virtual void getEnabledFeatures();
@@ -183,6 +222,9 @@ class VulkanExample : public VulkanExampleBase
 	void prepareUniformBuffers();
 	void updateUniformBuffers();
 	void prepare();
+
+	void setup_multiview();
+
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
 };
