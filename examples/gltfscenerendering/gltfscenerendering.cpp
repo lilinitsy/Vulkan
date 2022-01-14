@@ -442,17 +442,127 @@ void VulkanExample::getEnabledFeatures()
 void VulkanExample::setup_multiview()
 {
 	uint32_t multiview_layers = 2;
-	
-	// Layered depth/stencil FBO setup
+
+	// Colour attachment setup
 	{
 		VkImageCreateInfo image_ci = {
-			.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			.pNext = nullptr,
-			.flags = 0,
-			.imageType = VK_IMAGE_TYPE_2D,
-			.format = depthFormat,
-			.extent = {width, height, 1},
+			.sType		 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.pNext		 = nullptr,
+			.flags		 = 0,
+			.imageType	 = VK_IMAGE_TYPE_2D,
+			.format		 = swapChain.colorFormat,
+			.extent		 = {width, height, 1},
+			.mipLevels	 = 1,
+			.arrayLayers = multiview_layers,
+			.samples	 = VK_SAMPLE_COUNT_1_BIT,
+			.tiling		 = VK_IMAGE_TILING_OPTIMAL,
+			.usage		 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 		};
+		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.colour.image));
+
+		VkMemoryRequirements memory_requirements;
+		vkGetImageMemoryRequirements(device, multiview_pass.colour.image, &memory_requirements);
+
+		VkMemoryAllocateInfo memory_ai = {
+			.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize	 = memory_requirements.size,
+			.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+		};
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &multiview_pass.colour.memory));
+		VK_CHECK_RESULT(vkBindImageMemory(device, multiview_pass.colour.image, multiview_pass.colour.memory, 0));
+
+
+		VkImageSubresourceRange colour_subresource = {
+			.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+			.baseMipLevel	= 0,
+			.levelCount		= 1,
+			.baseArrayLayer = 0,
+			.layerCount		= multiview_layers,
+		};
+
+		VkImageViewCreateInfo image_view_ci = {
+			.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.pNext			  = nullptr,
+			.flags			  = 0,
+			.image			  = multiview_pass.colour.image,
+			.viewType		  = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+			.format			  = swapChain.colorFormat,
+			.subresourceRange = colour_subresource,
+		};
+		VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multiview_pass.colour.view));
+
+		VkSamplerCreateInfo sampler_ci = {
+			.sType			  = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.pNext			  = nullptr,
+			.flags			  = 0,
+			.magFilter		  = VK_FILTER_NEAREST,
+			.minFilter		  = VK_FILTER_NEAREST,
+			.mipmapMode		  = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+			.addressModeU	  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeV	  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.addressModeW	  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+			.mipLodBias		  = 0.0f,
+			.anisotropyEnable = VK_TRUE,
+			.maxAnisotropy	  = 1.0f,
+			.minLod			  = 0.0f,
+			.maxLod			  = 1.0f,
+			.borderColor	  = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+		};
+		VK_CHECK_RESULT(vkCreateSampler(device, &sampler_ci, nullptr, &multiview_pass.sampler));
+
+		// Setup the descriptors for the colour attachment
+		multiview_pass.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		multiview_pass.descriptor.imageView	  = multiview_pass.colour.view;
+		multiview_pass.descriptor.sampler	  = multiview_pass.sampler;
+	}
+
+	// depth/stencil FBO setup
+	{
+		VkImageCreateInfo image_ci = {
+			.sType		 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.pNext		 = nullptr,
+			.flags		 = 0,
+			.imageType	 = VK_IMAGE_TYPE_2D,
+			.format		 = depthFormat,
+			.extent		 = {width, height, 1},
+			.mipLevels	 = 1,
+			.arrayLayers = multiview_layers,
+			.samples	 = VK_SAMPLE_COUNT_1_BIT,
+			.tiling		 = VK_IMAGE_TILING_OPTIMAL,
+			.usage		 = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		};
+		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.depth.image));
+
+		VkMemoryRequirements memory_requirements;
+		vkGetImageMemoryRequirements(device, multiview_pass.depth.image, &memory_requirements);
+
+		VkMemoryAllocateInfo memory_ai = {
+			.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize	 = memory_requirements.size,
+			.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+		};
+
+		VkImageSubresourceRange depth_stencil_subresource = {
+			.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+			.baseMipLevel	= 0,
+			.levelCount		= 1,
+			.baseArrayLayer = 0,
+			.layerCount		= multiview_layers,
+		};
+
+		VkImageViewCreateInfo depth_stencil_view = {
+			.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.pNext			  = nullptr,
+			.flags			  = 0,
+			.image			  = multiview_pass.depth.image,
+			.viewType		  = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+			.format			  = depthFormat,
+			.subresourceRange = depth_stencil_subresource,
+		};
+
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &multiview_pass.depth.memory));
+		VK_CHECK_RESULT(vkBindImageMemory(device, multiview_pass.depth.image, multiview_pass.depth.memory, 0));
+		VK_CHECK_RESULT(vkCreateImageView(device, &depth_stencil_view, nullptr, &multiview_pass.depth.view));
 	}
 }
 
