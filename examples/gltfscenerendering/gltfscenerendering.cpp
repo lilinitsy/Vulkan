@@ -861,96 +861,73 @@ void VulkanExample::setupDescriptors()
 	// Two combined image samplers per material as each material uses color and
 	// normal maps
 	std::vector<VkDescriptorPoolSize> poolSizes = {
-		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-											  1),
+		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
 		vks::initializers::descriptorPoolSize(
 			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			static_cast<uint32_t>(glTFScene.materials.size()) * 2),
+			static_cast<uint32_t>(glTFScene.materials.size()) * 2 + 1), // +1 for multiview
 	};
+
 	// One set for matrices and one per model image/texture
-	const uint32_t maxSetCount =
-		static_cast<uint32_t>(glTFScene.images.size()) + 1;
-	VkDescriptorPoolCreateInfo descriptorPoolInfo =
-		vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount);
-	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr,
-										   &descriptorPool));
+	const uint32_t maxSetCount					  = static_cast<uint32_t>(glTFScene.images.size()) + 1;
+	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount);
+	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 	// Descriptor set layout for passing matrices
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-		vks::initializers::descriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)};
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI =
-		vks::initializers::descriptorSetLayoutCreateInfo(
-			setLayoutBindings.data(),
-			static_cast<uint32_t>(setLayoutBindings.size()));
+		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)};
 
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-		device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.matrices));
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
+
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.matrices));
 
 	// Descriptor set layout for passing material textures
 	setLayoutBindings = {
 		// Color map
-		vks::initializers::descriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_SHADER_STAGE_FRAGMENT_BIT, 0),
+		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0),
 		// Normal map
-		vks::initializers::descriptorSetLayoutBinding(
-			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			VK_SHADER_STAGE_FRAGMENT_BIT, 1),
+		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
 	};
+
 	descriptorSetLayoutCI.pBindings	   = setLayoutBindings.data();
 	descriptorSetLayoutCI.bindingCount = 2;
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(
-		device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.textures));
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.textures));
 
 	// Pipeline layout using both descriptor sets (set 0 = matrices, set 1 =
 	// material)
-	std::array<VkDescriptorSetLayout, 2> setLayouts = {
-		descriptorSetLayouts.matrices, descriptorSetLayouts.textures};
-	VkPipelineLayoutCreateInfo pipelineLayoutCI =
-		vks::initializers::pipelineLayoutCreateInfo(
-			setLayouts.data(), static_cast<uint32_t>(setLayouts.size()));
+	std::array<VkDescriptorSetLayout, 2> setLayouts = {descriptorSetLayouts.matrices, descriptorSetLayouts.textures};
+	VkPipelineLayoutCreateInfo pipelineLayoutCI		= vks::initializers::pipelineLayoutCreateInfo(setLayouts.data(), static_cast<uint32_t>(setLayouts.size()));
+
 	// We will use push constants to push the local matrices of a primitive to the
 	// vertex shader
-	VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(
-		VK_SHADER_STAGE_VERTEX_BIT, sizeof(glm::mat4), 0);
+	VkPushConstantRange pushConstantRange = vks::initializers::pushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, sizeof(glm::mat4), 0);
 	// Push constant ranges are part of the pipeline layout
 	pipelineLayoutCI.pushConstantRangeCount = 1;
 	pipelineLayoutCI.pPushConstantRanges	= &pushConstantRange;
-	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr,
-										   &pipelineLayout));
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 	// Descriptor set for scene matrices
-	VkDescriptorSetAllocateInfo allocInfo =
-		vks::initializers::descriptorSetAllocateInfo(
-			descriptorPool, &descriptorSetLayouts.matrices, 1);
+	VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.matrices, 1);
 	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
-	VkWriteDescriptorSet writeDescriptorSet =
-		vks::initializers::writeDescriptorSet(descriptorSet,
-											  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-											  0, &shaderData.buffer.descriptor);
+
+	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSet,
+																					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+																					0, &shaderData.buffer.descriptor);
 	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 
 	// Descriptor sets for materials
-	for(auto &material : glTFScene.materials)
+	for(uint32_t i = 0; i < glTFScene.materials.size(); i++)
 	{
-		const VkDescriptorSetAllocateInfo allocInfo =
-			vks::initializers::descriptorSetAllocateInfo(
-				descriptorPool, &descriptorSetLayouts.textures, 1);
-		VK_CHECK_RESULT(
-			vkAllocateDescriptorSets(device, &allocInfo, &material.descriptorSet));
-		VkDescriptorImageInfo colorMap =
-			glTFScene.getTextureDescriptor(material.baseColorTextureIndex);
-		VkDescriptorImageInfo normalMap =
-			glTFScene.getTextureDescriptor(material.normalTextureIndex);
+		const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.textures, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &glTFScene.materials[i].descriptorSet));
+		
+		VkDescriptorImageInfo colorMap = glTFScene.getTextureDescriptor(glTFScene.materials[i].baseColorTextureIndex);
+		VkDescriptorImageInfo normalMap = glTFScene.getTextureDescriptor(glTFScene.materials[i].normalTextureIndex);
+		
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-			vks::initializers::writeDescriptorSet(
-				material.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				0, &colorMap),
-			vks::initializers::writeDescriptorSet(
-				material.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-				1, &normalMap),
+			vks::initializers::writeDescriptorSet(glTFScene.materials[i].descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colorMap),
+			vks::initializers::writeDescriptorSet(glTFScene.materials[i].descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &normalMap),
 		};
+		
 		vkUpdateDescriptorSets(device,
 							   static_cast<uint32_t>(writeDescriptorSets.size()),
 							   writeDescriptorSets.data(), 0, nullptr);
