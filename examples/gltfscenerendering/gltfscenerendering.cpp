@@ -564,6 +564,108 @@ void VulkanExample::setup_multiview()
 		VK_CHECK_RESULT(vkBindImageMemory(device, multiview_pass.depth.image, multiview_pass.depth.memory, 0));
 		VK_CHECK_RESULT(vkCreateImageView(device, &depth_stencil_view, nullptr, &multiview_pass.depth.view));
 	}
+
+
+	// Multiview Renderpass
+	{
+		VkAttachmentDescription attachments[2];
+
+		// Colour attachment
+		attachments[0] = {
+			.flags			= 0,
+			.format			= swapChain.colorFormat,
+			.samples		= VK_SAMPLE_COUNT_1_BIT,
+			.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout	= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+
+		// Depth attachment
+		attachments[1] = {
+			.flags			= 0,
+			.format			= depthFormat,
+			.samples		= VK_SAMPLE_COUNT_1_BIT,
+			.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout	= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		};
+
+		// Attachment references
+		VkAttachmentReference colour_reference = {
+			.attachment = 0,
+			.layout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		};
+
+		VkAttachmentReference depth_reference = {
+			.attachment = 1,
+			.layout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+		};
+
+
+		// Subpass dependencies
+		VkSubpassDescription subpass_description = {
+			.pipelineBindPoint		 = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.colorAttachmentCount	 = 1,
+			.pColorAttachments		 = &colour_reference,
+			.pDepthStencilAttachment = &depth_reference,
+		};
+
+		VkSubpassDependency dependencies[2];
+		dependencies[0] = {
+			.srcSubpass		 = VK_SUBPASS_EXTERNAL,
+			.dstSubpass		 = 0,
+			.srcStageMask	 = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+			.dstStageMask	 = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.srcAccessMask	 = VK_ACCESS_MEMORY_READ_BIT,
+			.dstAccessMask	 = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+		};
+
+		dependencies[1] = {
+			.srcSubpass		 = 0,
+			.dstSubpass		 = VK_SUBPASS_EXTERNAL,
+			.srcStageMask	 = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.dstStageMask	 = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+			.srcAccessMask	 = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+			.dstAccessMask	 = VK_ACCESS_MEMORY_READ_BIT,
+			.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+		};
+
+		// Bit mask for which view is rendering
+		const uint32_t viewmask			= 0b00000011;
+		const uint32_t correlation_mask = 0b00000011;
+
+		// Multiview renderpass creation
+		VkRenderPassMultiviewCreateInfo renderpass_multiview_ci = {
+			.sType				  = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
+			.pNext				  = nullptr,
+			.subpassCount		  = 1,
+			.pViewMasks			  = &viewmask,
+			.correlationMaskCount = 1,
+			.pCorrelationMasks	  = &correlation_mask,
+		};
+
+
+		VkRenderPassCreateInfo renderpass_ci = {
+			.sType			 = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.pNext			 = &renderpass_multiview_ci,
+			.flags			 = 0,
+			.attachmentCount = 2,
+			.pAttachments	 = attachments,
+			.subpassCount	 = 1,
+			.pSubpasses		 = &subpass_description,
+			.dependencyCount = 2,
+			.pDependencies	 = dependencies,
+		};
+
+		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderpass_ci, nullptr, &multiview_pass.renderpass));
+	}
 }
 
 
