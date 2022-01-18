@@ -666,17 +666,25 @@ void VulkanExample::setup_multiview()
 
 		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderpass_ci, nullptr, &multiview_pass.renderpass));
 	}
+
+	// Framebuffer creation
+	{
+		VkImageView fbo_attachments[] = {multiview_pass.colour.view, multiview_pass.depth.view};
+
+		VkFramebufferCreateInfo fbo_ci = {
+			.sType			 = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.pNext			 = nullptr,
+			.flags			 = 0,
+			.renderPass		 = multiview_pass.renderpass,
+			.attachmentCount = 2,
+			.pAttachments	 = fbo_attachments,
+			.width			 = SERVERWIDTH,
+			.height			 = SERVERHEIGHT,
+			.layers			 = 1,
+		};
+		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbo_ci, nullptr, &multiview_pass.framebuffer));
+	}
 }
-
-
-
-
-
-
-
-
-
-
 
 
 void VulkanExample::buildCommandBuffers()
@@ -690,8 +698,7 @@ void VulkanExample::buildCommandBuffers()
 	;
 	clearValues[1].depthStencil = {1.0f, 0};
 
-	VkRenderPassBeginInfo renderPassBeginInfo =
-		vks::initializers::renderPassBeginInfo();
+	VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
 	renderPassBeginInfo.renderPass				 = renderPass;
 	renderPassBeginInfo.renderArea.offset.x		 = 0;
 	renderPassBeginInfo.renderArea.offset.y		 = 0;
