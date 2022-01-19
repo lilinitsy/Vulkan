@@ -862,9 +862,7 @@ void VulkanExample::setupDescriptors()
 	// normal maps
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-		vks::initializers::descriptorPoolSize(
-			VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			static_cast<uint32_t>(glTFScene.materials.size()) * 2 + 1), // +1 for multiview
+		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFScene.materials.size()) * 2 + 1), // +1 for multiview
 	};
 
 	// One set for matrices and one per model image/texture
@@ -874,7 +872,8 @@ void VulkanExample::setupDescriptors()
 
 	// Descriptor set layout for passing matrices
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
-		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)};
+		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
+	};
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
 
@@ -909,9 +908,7 @@ void VulkanExample::setupDescriptors()
 	VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.matrices, 1);
 	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
 
-	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSet,
-																					VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-																					0, &shaderData.buffer.descriptor);
+	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &shaderData.buffer.descriptor);
 	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 
 	// Descriptor sets for materials
@@ -919,101 +916,66 @@ void VulkanExample::setupDescriptors()
 	{
 		const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.textures, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &glTFScene.materials[i].descriptorSet));
-		
-		VkDescriptorImageInfo colorMap = glTFScene.getTextureDescriptor(glTFScene.materials[i].baseColorTextureIndex);
+
+		VkDescriptorImageInfo colorMap	= glTFScene.getTextureDescriptor(glTFScene.materials[i].baseColorTextureIndex);
 		VkDescriptorImageInfo normalMap = glTFScene.getTextureDescriptor(glTFScene.materials[i].normalTextureIndex);
-		
+
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 			vks::initializers::writeDescriptorSet(glTFScene.materials[i].descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colorMap),
 			vks::initializers::writeDescriptorSet(glTFScene.materials[i].descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &normalMap),
+			//vks::initializers::writeDescri
 		};
-		
-		vkUpdateDescriptorSets(device,
-							   static_cast<uint32_t>(writeDescriptorSets.size()),
-							   writeDescriptorSets.data(), 0, nullptr);
+
+		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 }
 
 void VulkanExample::preparePipelines()
 {
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI =
-		vks::initializers::pipelineInputAssemblyStateCreateInfo(
-			VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
-	VkPipelineRasterizationStateCreateInfo rasterizationStateCI =
-		vks::initializers::pipelineRasterizationStateCreateInfo(
-			VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT,
-			VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
-	VkPipelineColorBlendAttachmentState blendAttachmentStateCI =
-		vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-	VkPipelineColorBlendStateCreateInfo colorBlendStateCI =
-		vks::initializers::pipelineColorBlendStateCreateInfo(
-			1, &blendAttachmentStateCI);
-	VkPipelineDepthStencilStateCreateInfo depthStencilStateCI =
-		vks::initializers::pipelineDepthStencilStateCreateInfo(
-			VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
-	VkPipelineViewportStateCreateInfo viewportStateCI =
-		vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-	VkPipelineMultisampleStateCreateInfo multisampleStateCI =
-		vks::initializers::pipelineMultisampleStateCreateInfo(
-			VK_SAMPLE_COUNT_1_BIT, 0);
-	const std::vector<VkDynamicState> dynamicStateEnables = {
-		VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-	VkPipelineDynamicStateCreateInfo dynamicStateCI =
-		vks::initializers::pipelineDynamicStateCreateInfo(
-			dynamicStateEnables.data(),
-			static_cast<uint32_t>(dynamicStateEnables.size()), 0);
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+	VkPipelineRasterizationStateCreateInfo rasterizationStateCI = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
+	VkPipelineColorBlendAttachmentState blendAttachmentStateCI	= vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+	VkPipelineColorBlendStateCreateInfo colorBlendStateCI		= vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentStateCI);
+	VkPipelineDepthStencilStateCreateInfo depthStencilStateCI	= vks::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+	VkPipelineViewportStateCreateInfo viewportStateCI			= vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+	VkPipelineMultisampleStateCreateInfo multisampleStateCI		= vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
+	const std::vector<VkDynamicState> dynamicStateEnables		= {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+	VkPipelineDynamicStateCreateInfo dynamicStateCI				= vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), static_cast<uint32_t>(dynamicStateEnables.size()), 0);
+
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
 	const std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
-		vks::initializers::vertexInputBindingDescription(
-			0, sizeof(VulkanglTFScene::Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
+		vks::initializers::vertexInputBindingDescription(0, sizeof(VulkanglTFScene::Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
 	};
+
 	const std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
-		vks::initializers::vertexInputAttributeDescription(
-			0, 0, VK_FORMAT_R32G32B32_SFLOAT,
-			offsetof(VulkanglTFScene::Vertex, pos)),
-		vks::initializers::vertexInputAttributeDescription(
-			0, 1, VK_FORMAT_R32G32B32_SFLOAT,
-			offsetof(VulkanglTFScene::Vertex, normal)),
-		vks::initializers::vertexInputAttributeDescription(
-			0, 2, VK_FORMAT_R32G32B32_SFLOAT,
-			offsetof(VulkanglTFScene::Vertex, uv)),
-		vks::initializers::vertexInputAttributeDescription(
-			0, 3, VK_FORMAT_R32G32B32_SFLOAT,
-			offsetof(VulkanglTFScene::Vertex, color)),
-		vks::initializers::vertexInputAttributeDescription(
-			0, 4, VK_FORMAT_R32G32B32_SFLOAT,
-			offsetof(VulkanglTFScene::Vertex, tangent)),
+		vks::initializers::vertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, pos)),
+		vks::initializers::vertexInputAttributeDescription(0, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, normal)),
+		vks::initializers::vertexInputAttributeDescription(0, 2, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, uv)),
+		vks::initializers::vertexInputAttributeDescription(0, 3, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, color)),
+		vks::initializers::vertexInputAttributeDescription(0, 4, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, tangent)),
 	};
-	VkPipelineVertexInputStateCreateInfo vertexInputStateCI =
-		vks::initializers::pipelineVertexInputStateCreateInfo(
-			vertexInputBindings, vertexInputAttributes);
+	VkPipelineVertexInputStateCreateInfo vertexInputStateCI = vks::initializers::pipelineVertexInputStateCreateInfo(vertexInputBindings, vertexInputAttributes);
 
-	VkGraphicsPipelineCreateInfo pipelineCI =
-		vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
-	pipelineCI.pVertexInputState   = &vertexInputStateCI;
-	pipelineCI.pInputAssemblyState = &inputAssemblyStateCI;
-	pipelineCI.pRasterizationState = &rasterizationStateCI;
-	pipelineCI.pColorBlendState	   = &colorBlendStateCI;
-	pipelineCI.pMultisampleState   = &multisampleStateCI;
-	pipelineCI.pViewportState	   = &viewportStateCI;
-	pipelineCI.pDepthStencilState  = &depthStencilStateCI;
-	pipelineCI.pDynamicState	   = &dynamicStateCI;
-	pipelineCI.stageCount		   = static_cast<uint32_t>(shaderStages.size());
-	pipelineCI.pStages			   = shaderStages.data();
+	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+	pipelineCI.pVertexInputState			= &vertexInputStateCI;
+	pipelineCI.pInputAssemblyState			= &inputAssemblyStateCI;
+	pipelineCI.pRasterizationState			= &rasterizationStateCI;
+	pipelineCI.pColorBlendState				= &colorBlendStateCI;
+	pipelineCI.pMultisampleState			= &multisampleStateCI;
+	pipelineCI.pViewportState				= &viewportStateCI;
+	pipelineCI.pDepthStencilState			= &depthStencilStateCI;
+	pipelineCI.pDynamicState				= &dynamicStateCI;
+	pipelineCI.stageCount					= static_cast<uint32_t>(shaderStages.size());
+	pipelineCI.pStages						= shaderStages.data();
 
-	shaderStages[0] =
-		loadShader(getShadersPath() + "gltfscenerendering/scene.vert.spv",
-				   VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStages[1] =
-		loadShader(getShadersPath() + "gltfscenerendering/scene.frag.spv",
-				   VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/scene.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/scene.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
 	// each material using the properties of that material
-	for(auto &material : glTFScene.materials)
-	{
-
+	for(VulkanglTFScene::Material &material : glTFScene.materials)
+	{	
 		struct MaterialSpecializationData
 		{
 			VkBool32 alphaMask;
@@ -1026,25 +988,17 @@ void VulkanExample::preparePipelines()
 		// POI: Constant fragment shader material parameters will be set using
 		// specialization constants
 		std::vector<VkSpecializationMapEntry> specializationMapEntries = {
-			vks::initializers::specializationMapEntry(
-				0, offsetof(MaterialSpecializationData, alphaMask),
-				sizeof(MaterialSpecializationData::alphaMask)),
-			vks::initializers::specializationMapEntry(
-				1, offsetof(MaterialSpecializationData, alphaMaskCutoff),
-				sizeof(MaterialSpecializationData::alphaMaskCutoff)),
+			vks::initializers::specializationMapEntry(0, offsetof(MaterialSpecializationData, alphaMask), sizeof(MaterialSpecializationData::alphaMask)),
+			vks::initializers::specializationMapEntry(1, offsetof(MaterialSpecializationData, alphaMaskCutoff), sizeof(MaterialSpecializationData::alphaMaskCutoff)),
 		};
-		VkSpecializationInfo specializationInfo =
-			vks::initializers::specializationInfo(
-				specializationMapEntries, sizeof(materialSpecializationData),
-				&materialSpecializationData);
-		shaderStages[1].pSpecializationInfo = &specializationInfo;
+
+		VkSpecializationInfo specializationInfo = vks::initializers::specializationInfo(specializationMapEntries, sizeof(materialSpecializationData), &materialSpecializationData);
+		shaderStages[1].pSpecializationInfo		= &specializationInfo;
 
 		// For double sided materials, culling will be disabled
-		rasterizationStateCI.cullMode =
-			material.doubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+		rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
 
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(
-			device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
 	}
 }
 
