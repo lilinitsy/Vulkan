@@ -179,9 +179,14 @@ class VulkanExample : public VulkanExampleBase
 	{
 		VkDescriptorSetLayout matrices;
 		VkDescriptorSetLayout textures;
+		VkDescriptorSetLayout viewdisp;
 	} descriptorSetLayouts;
 
 	// Imported stuff from multiview/multiview.cpp
+	VkPipeline viewdisp_pipelines[2];
+	VkPipelineLayout viewdisp_pipeline_layout;
+	VkDescriptorSet viewdisp_descriptor_set;
+
 	struct MultiviewPass
 	{
 		struct FrameBufferAttachment
