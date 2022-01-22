@@ -944,23 +944,37 @@ void VulkanExample::setupDescriptors()
 		// pipeline layout
 		VkPipelineLayoutCreateInfo viewdisp_pl_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.viewdisp, 1);
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &viewdisp_pipeline_layout));
-
-		// Descriptors
-		VkDescriptorSetAllocateInfo descriptorset_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.viewdisp, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descriptorset_ai, &viewdisp_descriptor_set))
-
-		std::vector<VkWriteDescriptorSet> viewdisp_write_descriptor_sets = {
-			vks::initializers::writeDescriptorSet(viewdisp_descriptor_set, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &ubo)
-		}
 	}
-
-
-
-	VkPipelineLayoutCreateInfo viewdisp_pipeline_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&)
 }
 
 void VulkanExample::preparePipelines()
 {
+	// First, query for multiview support stuff
+	VkPhysicalDeviceFeatures2KHR multiview_device_features2{};
+	VkPhysicalDeviceMultiviewFeaturesKHR multiview_extension_features{};
+	multiview_extension_features.sType									= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR;
+	multiview_device_features2.sType									= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
+	multiview_device_features2.pNext									= &multiview_extension_features;
+	PFN_vkGetPhysicalDeviceFeatures2KHR vkGetPhysicalDeviceFeatures2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
+	vkGetPhysicalDeviceFeatures2KHR(physicalDevice, &multiview_device_features2);
+	std::cout << "Multiview features:" << std::endl;
+	std::cout << "\tmultiview = " << multiview_extension_features.multiview << std::endl;
+	std::cout << "\tmultiviewGeometryShader = " << multiview_extension_features.multiviewGeometryShader << std::endl;
+	std::cout << "\tmultiviewTessellationShader = " << multiview_extension_features.multiviewTessellationShader << std::endl;
+	std::cout << std::endl;
+
+	VkPhysicalDeviceProperties2KHR device_properties2{};
+	VkPhysicalDeviceMultiviewPropertiesKHR extension_properties{};
+	extension_properties.sType												= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES_KHR;
+	device_properties2.sType												= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
+	device_properties2.pNext												= &extension_properties;
+	PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
+	vkGetPhysicalDeviceProperties2KHR(physicalDevice, &device_properties2);
+	std::cout << "Multiview properties:" << std::endl;
+	std::cout << "\tmaxMultiviewViewCount = " << extension_properties.maxMultiviewViewCount << std::endl;
+	std::cout << "\tmaxMultiviewInstanceIndex = " << extension_properties.maxMultiviewInstanceIndex << std::endl;
+
+
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
 	VkPipelineRasterizationStateCreateInfo rasterizationStateCI = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
 	VkPipelineColorBlendAttachmentState blendAttachmentStateCI	= vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
@@ -1031,58 +1045,37 @@ void VulkanExample::preparePipelines()
 	}
 
 	// Viewdisp pipelines setup
+
+	// Viewdisplay for multiview
+	VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
+	float multiview_array_layer								   = 0.0f;
+	VkSpecializationMapEntry viewdisp_specialization_map_entry = {0, 0, sizeof(float)};
+	VkSpecializationInfo viewdisp_specialization_info		   = {
+		 .mapEntryCount = 1,
+		 .pMapEntries	= &viewdisp_specialization_map_entry,
+		 .dataSize		= sizeof(float),
+		 .pData			= &multiview_array_layer,
+	 };
+
+
+	for(uint32_t i = 0; i < 2; i++)
 	{
-		// First, query for multiview support stuff
-		VkPhysicalDeviceFeatures2KHR multiview_device_features2{};
-		VkPhysicalDeviceMultiviewFeaturesKHR multiview_extension_features{};
-		multiview_extension_features.sType									= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR;
-		multiview_device_features2.sType									= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
-		multiview_device_features2.pNext									= &multiview_extension_features;
-		PFN_vkGetPhysicalDeviceFeatures2KHR vkGetPhysicalDeviceFeatures2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
-		vkGetPhysicalDeviceFeatures2KHR(physicalDevice, &multiview_device_features2);
-		std::cout << "Multiview features:" << std::endl;
-		std::cout << "\tmultiview = " << multiview_extension_features.multiview << std::endl;
-		std::cout << "\tmultiviewGeometryShader = " << multiview_extension_features.multiviewGeometryShader << std::endl;
-		std::cout << "\tmultiviewTessellationShader = " << multiview_extension_features.multiviewTessellationShader << std::endl;
-		std::cout << std::endl;
+		viewdisp_shader_stages[0]					  = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		viewdisp_shader_stages[1]					  = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		viewdisp_shader_stages[1].pSpecializationInfo = &viewdisp_specialization_info;
+		multiview_array_layer						  = (float) i;
+		std::cout << "viewdisp shaders loaded\n";
 
-		VkPhysicalDeviceProperties2KHR device_properties2{};
-		VkPhysicalDeviceMultiviewPropertiesKHR extension_properties{};
-		extension_properties.sType												= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES_KHR;
-		device_properties2.sType												= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
-		device_properties2.pNext												= &extension_properties;
-		PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
-		vkGetPhysicalDeviceProperties2KHR(physicalDevice, &device_properties2);
-		std::cout << "Multiview properties:" << std::endl;
-		std::cout << "\tmaxMultiviewViewCount = " << extension_properties.maxMultiviewViewCount << std::endl;
-		std::cout << "\tmaxMultiviewInstanceIndex = " << extension_properties.maxMultiviewInstanceIndex << std::endl;
-
-		// Viewdisplay for multiview
-		VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
-		float multiview_array_layer								   = 0.0f;
-		VkSpecializationMapEntry viewdisp_specialization_map_entry = {0, 0, sizeof(float)};
-		VkSpecializationInfo viewdisp_specialization_info		   = {
-			 .mapEntryCount = 1,
-			 .pMapEntries	= &viewdisp_specialization_map_entry,
-			 .dataSize		= sizeof(float),
-			 .pData			= &multiview_array_layer,
-		 };
-
-
-		for(uint32_t i = 0; i < 2; i++)
-		{
-			viewdisp_shader_stages[0]					= loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-			viewdisp_shader_stages[1]					= loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-			viewdisp_shader_stages->pSpecializationInfo = &viewdisp_specialization_info;
-			multiview_array_layer						= (float) i;
-
-			VkPipelineVertexInputStateCreateInfo empty_input_state = vks::initializers::pipelineVertexInputStateCreateInfo();
-			pipelineCI.pVertexInputState						   = &empty_input_state;
-			pipelineCI.layout									   = viewdisp_pipeline_layout;
-			pipelineCI.renderPass								   = renderPass;
-			VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewdisp_pipelines[i]));
-		}
+		VkPipelineVertexInputStateCreateInfo empty_input_state = vks::initializers::pipelineVertexInputStateCreateInfo();
+		pipelineCI.pVertexInputState						   = &empty_input_state;
+		pipelineCI.layout									   = viewdisp_pipeline_layout;
+		pipelineCI.pStages = viewdisp_shader_stages;
+		pipelineCI.renderPass								   = renderPass;
+		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewdisp_pipelines[i]));
+		std::cout << "Graphics pipeline created\n";
 	}
+
+	std::cout << "Finished  setting up pipelines\n";
 }
 
 void VulkanExample::prepareUniformBuffers()
