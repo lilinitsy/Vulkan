@@ -689,13 +689,47 @@ void VulkanExample::setup_multiview()
 
 void VulkanExample::buildCommandBuffers()
 {
-	VkCommandBufferBeginInfo cmdBufInfo =
-		vks::initializers::commandBufferBeginInfo();
+	// View display rendering
+	/*{
+		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+
+		VkClearValue clearValues[2];
+		clearValues[0].color		= defaultClearColor;
+		clearValues[1].depthStencil = {1.0f, 0};
+
+		VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
+		renderPassBeginInfo.renderPass				 = renderPass;
+		renderPassBeginInfo.renderArea.offset.x		 = 0;
+		renderPassBeginInfo.renderArea.offset.y		 = 0;
+		renderPassBeginInfo.renderArea.extent.width	 = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.clearValueCount			 = 2;
+		renderPassBeginInfo.pClearValues			 = clearValues;
+
+		for(int32_t i = 0; i < drawCmdBuffers.size(); ++i)
+		{
+			renderPassBeginInfo.framebuffer = frameBuffers[i];
+
+			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
+			VkRect2D scissor	= vks::initializers::rect2D(width / 2, height, 0, 0);
+			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+
+			// Bind viewdisp descriptor set
+			vkCmdBindDescriptorSets(drawCmdBuffers[], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &de)
+		}
+	}*/
+
+
+
+	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 	VkClearValue clearValues[2];
 	clearValues[0].color = defaultClearColor;
 	clearValues[0].color = {{0.25f, 0.25f, 0.25f, 1.0f}};
-	;
+
 	clearValues[1].depthStencil = {1.0f, 0};
 
 	VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
@@ -707,9 +741,8 @@ void VulkanExample::buildCommandBuffers()
 	renderPassBeginInfo.clearValueCount			 = 2;
 	renderPassBeginInfo.pClearValues			 = clearValues;
 
-	const VkViewport viewport =
-		vks::initializers::viewport((float) width, (float) height, 0.0f, 1.0f);
-	const VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+	const VkViewport viewport = vks::initializers::viewport((float) width, (float) height, 0.0f, 1.0f);
+	const VkRect2D scissor	  = vks::initializers::rect2D(width, height, 0, 0);
 
 	for(int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 	{
@@ -1047,7 +1080,7 @@ void VulkanExample::preparePipelines()
 	// Viewdisp pipelines setup
 
 	// Viewdisplay for multiview
-	VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
+	/*VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
 	float multiview_array_layer								   = 0.0f;
 	VkSpecializationMapEntry viewdisp_specialization_map_entry = {0, 0, sizeof(float)};
 	VkSpecializationInfo viewdisp_specialization_info		   = {
@@ -1064,7 +1097,6 @@ void VulkanExample::preparePipelines()
 		viewdisp_shader_stages[1]					  = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		viewdisp_shader_stages[1].pSpecializationInfo = &viewdisp_specialization_info;
 		multiview_array_layer						  = (float) i;
-		std::cout << "viewdisp shaders loaded\n";
 
 		VkPipelineVertexInputStateCreateInfo empty_input_state = vks::initializers::pipelineVertexInputStateCreateInfo();
 		pipelineCI.pVertexInputState						   = &empty_input_state;
@@ -1072,10 +1104,7 @@ void VulkanExample::preparePipelines()
 		pipelineCI.pStages = viewdisp_shader_stages;
 		pipelineCI.renderPass								   = renderPass;
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewdisp_pipelines[i]));
-		std::cout << "Graphics pipeline created\n";
-	}
-
-	std::cout << "Finished  setting up pipelines\n";
+	}*/
 }
 
 void VulkanExample::prepareUniformBuffers()
@@ -1091,11 +1120,56 @@ void VulkanExample::prepareUniformBuffers()
 
 void VulkanExample::updateUniformBuffers()
 {
-	shaderData.values.projection = camera.matrices.perspective;
-	shaderData.values.view		 = camera.matrices.view;
-	shaderData.values.viewPos	 = camera.viewPos;
-	memcpy(shaderData.buffer.mapped, &shaderData.values,
-		   sizeof(shaderData.values));
+	// Matrices for the two viewports
+	// See http://paulbourke.net/stereographics/stereorender/
+
+	// Calculate some variables
+	float aspectRatio = (float) (width * 0.5f) / (float) height;
+	float wd2		  = zNear * tan(glm::radians(fov / 2.0f));
+	float ndfl		  = zNear / focalLength;
+	float left, right;
+	float top	 = wd2;
+	float bottom = -wd2;
+
+	glm::vec3 camFront;
+	camFront.x		   = -cos(glm::radians(camera.rotation.x)) * sin(glm::radians(camera.rotation.y));
+	camFront.y		   = sin(glm::radians(camera.rotation.x));
+	camFront.z		   = cos(glm::radians(camera.rotation.x)) * cos(glm::radians(camera.rotation.y));
+	camFront		   = glm::normalize(camFront);
+	glm::vec3 camRight = glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)));
+
+	glm::mat4 rotM = glm::mat4(1.0f);
+	glm::mat4 transM;
+
+	rotM = glm::rotate(rotM, glm::radians(camera.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+	rotM = glm::rotate(rotM, glm::radians(camera.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+	rotM = glm::rotate(rotM, glm::radians(camera.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+
+	// Left eye
+	left  = -aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
+	right = aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
+
+	transM							= glm::translate(glm::mat4(1.0f), camera.position - camRight * (eyeSeparation / 2.0f));
+	shaderData.values.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
+
+
+	shaderData.values.projection[0] = camera.matrices.perspective;
+	shaderData.values.view[0]		= transM; // camera.matrices.view;
+
+
+	// Right eye
+	left  = -aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
+	right = aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
+
+	transM = glm::translate(glm::mat4(1.0f), camera.position + camRight * (eyeSeparation / 2.0f));
+
+	shaderData.values.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
+	shaderData.values.view[1]		= transM;
+
+
+	shaderData.values.viewPos = camera.viewPos;
+
+	memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 }
 
 void VulkanExample::prepare()
