@@ -690,7 +690,7 @@ void VulkanExample::setup_multiview()
 void VulkanExample::buildCommandBuffers()
 {
 	// View display rendering
-	/*{
+	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 		VkClearValue clearValues[2];
@@ -717,52 +717,75 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
-			// Bind viewdisp descriptor set
-			vkCmdBindDescriptorSets(drawCmdBuffers[], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &de)
+			// Bind descriptor set
+			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipeline_layout, 0, 1, &viewdisp_descriptor_set, 0, nullptr);
+
+			// Left eye
+			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			// Right eye
+			viewport.x		 = (float) width / 2;
+			scissor.offset.x = width / 2;
+			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+
+			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			// drawUI(drawCmdBuffers[i]);
+			vkCmdEndRenderPass(drawCmdBuffers[i]);
+			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
+		}
+	}
+
+
+	// Multiview GLTF rendering
+	/*{
+		multiview_pass.command_buffers.resize(drawCmdBuffers.size());
+		VkCommandBufferAllocateInfo cmdbuf_ai = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, static_cast<uint32_t>(drawCmdBuffers.size()));
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdbuf_ai, multiview_pass.command_buffers.data()));
+
+		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+
+		VkClearValue clearValues[2];
+		clearValues[0].color = defaultClearColor;
+		clearValues[0].color = {{0.25f, 0.25f, 0.25f, 1.0f}};
+
+		clearValues[1].depthStencil = {1.0f, 0};
+
+		VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
+		renderPassBeginInfo.renderPass				 = multiview_pass.renderpass;
+		renderPassBeginInfo.renderArea.offset.x		 = 0;
+		renderPassBeginInfo.renderArea.offset.y		 = 0;
+		renderPassBeginInfo.renderArea.extent.width	 = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.clearValueCount			 = 2;
+		renderPassBeginInfo.pClearValues			 = clearValues;
+
+		const VkViewport viewport = vks::initializers::viewport((float) width, (float) height, 0.0f, 1.0f);
+		const VkRect2D scissor	  = vks::initializers::rect2D(width, height, 0, 0);
+
+		for(int32_t i = 0; i < multiview_pass.command_buffers.size(); ++i)
+		{
+			renderPassBeginInfo.framebuffer = multiview_pass.framebuffer;
+			VK_CHECK_RESULT(vkBeginCommandBuffer(multiview_pass.command_buffers[i], &cmdBufInfo));
+			
+			vkCmdBeginRenderPass(multiview_pass.command_buffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+			vkCmdSetViewport(multiview_pass.command_buffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(multiview_pass.command_buffers[i], 0, 1, &scissor);
+			
+			// Bind scene matrices descriptor to set 0
+			vkCmdBindDescriptorSets(multiview_pass.command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+
+			// POI: Draw the glTF scene
+			glTFScene.draw(multiview_pass.command_buffers[i], pipelineLayout);
+
+			drawUI(multiview_pass.command_buffers[i]);
+			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
+			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
 		}
 	}*/
-
-
-
-	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-
-	VkClearValue clearValues[2];
-	clearValues[0].color = defaultClearColor;
-	clearValues[0].color = {{0.25f, 0.25f, 0.25f, 1.0f}};
-
-	clearValues[1].depthStencil = {1.0f, 0};
-
-	VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
-	renderPassBeginInfo.renderPass				 = renderPass;
-	renderPassBeginInfo.renderArea.offset.x		 = 0;
-	renderPassBeginInfo.renderArea.offset.y		 = 0;
-	renderPassBeginInfo.renderArea.extent.width	 = width;
-	renderPassBeginInfo.renderArea.extent.height = height;
-	renderPassBeginInfo.clearValueCount			 = 2;
-	renderPassBeginInfo.pClearValues			 = clearValues;
-
-	const VkViewport viewport = vks::initializers::viewport((float) width, (float) height, 0.0f, 1.0f);
-	const VkRect2D scissor	  = vks::initializers::rect2D(width, height, 0, 0);
-
-	for(int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-	{
-		renderPassBeginInfo.framebuffer = frameBuffers[i];
-		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
-		vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo,
-							 VK_SUBPASS_CONTENTS_INLINE);
-		vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-		vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
-		// Bind scene matrices descriptor to set 0
-		vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
-								pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
-
-		// POI: Draw the glTF scene
-		glTFScene.draw(drawCmdBuffers[i], pipelineLayout);
-
-		drawUI(drawCmdBuffers[i]);
-		vkCmdEndRenderPass(drawCmdBuffers[i]);
-		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
-	}
 }
 
 void VulkanExample::loadglTFFile(std::string filename)
@@ -895,7 +918,7 @@ void VulkanExample::setupDescriptors()
 	// normal maps
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2),
-		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFScene.materials.size()) * 2 + 1), // +1 for multiview
+		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFScene.materials.size()) * 2 + 3), // +1 for multiview
 	};
 
 	// One set for matrices and one per model image/texture
@@ -956,7 +979,6 @@ void VulkanExample::setupDescriptors()
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 			vks::initializers::writeDescriptorSet(glTFScene.materials[i].descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colorMap),
 			vks::initializers::writeDescriptorSet(glTFScene.materials[i].descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &normalMap),
-			//vks::initializers::writeDescri
 		};
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
@@ -967,16 +989,26 @@ void VulkanExample::setupDescriptors()
 	{
 		// descriptor set layout
 		std::vector<VkDescriptorSetLayoutBinding> viewdisp_layout_bindings = {
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0),
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
 		};
 
-		VkDescriptorSetLayoutCreateInfo viewdisp_desc_layout = vks::initializers::descriptorSetLayoutCreateInfo(viewdisp_layout_bindings);
+		VkDescriptorSetLayoutCreateInfo viewdisp_desc_layout = vks::initializers::descriptorSetLayoutCreateInfo(viewdisp_layout_bindings);		
 		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &viewdisp_desc_layout, nullptr, &descriptorSetLayouts.viewdisp));
 
 		// pipeline layout
 		VkPipelineLayoutCreateInfo viewdisp_pl_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.viewdisp, 1);
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &viewdisp_pipeline_layout));
+
+
+		// Setup viewdisp descriptor set
+		VkDescriptorSetAllocateInfo set_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.viewdisp, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &set_ai, &viewdisp_descriptor_set));
+
+		std::vector<VkWriteDescriptorSet> viewdisp_write_desc_sets = {
+			vks::initializers::writeDescriptorSet(viewdisp_descriptor_set, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &multiview_pass.descriptor),
+		};
+
+		vkUpdateDescriptorSets(device, viewdisp_write_desc_sets.size(), viewdisp_write_desc_sets.data(), 0, nullptr);
 	}
 }
 
@@ -1033,7 +1065,7 @@ void VulkanExample::preparePipelines()
 	};
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCI = vks::initializers::pipelineVertexInputStateCreateInfo(vertexInputBindings, vertexInputAttributes);
 
-	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, renderPass, 0);
+	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, multiview_pass.renderpass, 0);
 	pipelineCI.pVertexInputState			= &vertexInputStateCI;
 	pipelineCI.pInputAssemblyState			= &inputAssemblyStateCI;
 	pipelineCI.pRasterizationState			= &rasterizationStateCI;
@@ -1080,7 +1112,7 @@ void VulkanExample::preparePipelines()
 	// Viewdisp pipelines setup
 
 	// Viewdisplay for multiview
-	/*VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
+	VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
 	float multiview_array_layer								   = 0.0f;
 	VkSpecializationMapEntry viewdisp_specialization_map_entry = {0, 0, sizeof(float)};
 	VkSpecializationInfo viewdisp_specialization_info		   = {
@@ -1101,10 +1133,10 @@ void VulkanExample::preparePipelines()
 		VkPipelineVertexInputStateCreateInfo empty_input_state = vks::initializers::pipelineVertexInputStateCreateInfo();
 		pipelineCI.pVertexInputState						   = &empty_input_state;
 		pipelineCI.layout									   = viewdisp_pipeline_layout;
-		pipelineCI.pStages = viewdisp_shader_stages;
+		pipelineCI.pStages									   = viewdisp_shader_stages;
 		pipelineCI.renderPass								   = renderPass;
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewdisp_pipelines[i]));
-	}*/
+	}
 }
 
 void VulkanExample::prepareUniformBuffers()
