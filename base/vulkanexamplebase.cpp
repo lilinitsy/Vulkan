@@ -719,7 +719,7 @@ void VulkanExampleBase::submitFrame()
 	VK_CHECK_RESULT(vkQueueWaitIdle(queue));
 }
 
-VulkanExampleBase::VulkanExampleBase(bool enableValidation)
+VulkanExampleBase::VulkanExampleBase(bool enableValidation, uint32_t w, uint32_t h)
 {
 #if !defined(VK_USE_PLATFORM_ANDROID_KHR)
 	// Check for a valid asset path
@@ -737,6 +737,9 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 #endif
 
 	settings.validation = enableValidation;
+
+	width = w;
+	height = h;
 	
 	// Command line arguments
 	commandLineParser.parse(args);

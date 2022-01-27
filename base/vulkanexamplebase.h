@@ -287,7 +287,7 @@ public:
 	bool quit = false;
 #endif
 
-	VulkanExampleBase(bool enableValidation = false);
+	VulkanExampleBase(bool enableValidation = false, uint32_t w = 1280, uint32_t h = 720);
 	virtual ~VulkanExampleBase();
 	/** @brief Setup the vulkan instance, enable required extensions and connect to the physical device (GPU) */
 	bool initVulkan();
