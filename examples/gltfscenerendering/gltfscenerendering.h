@@ -227,6 +227,7 @@ class VulkanExample : public VulkanExampleBase
 	void prepareUniformBuffers();
 	void updateUniformBuffers();
 	void prepare();
+	void draw();
 
 	void setup_multiview();
 

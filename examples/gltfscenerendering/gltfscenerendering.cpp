@@ -566,7 +566,6 @@ void VulkanExample::setup_multiview()
 		VK_CHECK_RESULT(vkCreateImageView(device, &depth_stencil_view, nullptr, &multiview_pass.depth.view));
 	}
 
-	/*
 	// Multiview Renderpass
 	{
 		VkAttachmentDescription attachments[2];
@@ -684,7 +683,7 @@ void VulkanExample::setup_multiview()
 			.layers			 = 1,
 		};
 		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbo_ci, nullptr, &multiview_pass.framebuffer));
-	}*/
+	}
 }
 
 
@@ -742,7 +741,7 @@ void VulkanExample::buildCommandBuffers()
 
 
 	// Multiview GLTF rendering
-	/*{
+	{
 		multiview_pass.command_buffers.resize(drawCmdBuffers.size());
 		VkCommandBufferAllocateInfo cmdbuf_ai = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, static_cast<uint32_t>(drawCmdBuffers.size()));
 		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdbuf_ai, multiview_pass.command_buffers.data()));
@@ -786,7 +785,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
 		}
-	}*/
+	}
 }
 
 void VulkanExample::loadglTFFile(std::string filename)
@@ -927,7 +926,7 @@ void VulkanExample::setupDescriptors()
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount);
 	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
-	/*
+
 	// Descriptor set layout for passing matrices
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0),
@@ -985,7 +984,7 @@ void VulkanExample::setupDescriptors()
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
-	*/
+	
 
 	// Viewdisplay pipeline stuff
 	{
@@ -1054,7 +1053,7 @@ void VulkanExample::preparePipelines()
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
-	/*
+	
 	const std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
 		vks::initializers::vertexInputBindingDescription(0, sizeof(VulkanglTFScene::Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
 	};
@@ -1067,9 +1066,9 @@ void VulkanExample::preparePipelines()
 		vks::initializers::vertexInputAttributeDescription(0, 4, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, tangent)),
 	}; 
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCI = vks::initializers::pipelineVertexInputStateCreateInfo(vertexInputBindings, vertexInputAttributes);
-	*/
+	
 	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, multiview_pass.renderpass, 0);
-	//pipelineCI.pVertexInputState			= &vertexInputStateCI;
+	pipelineCI.pVertexInputState			= &vertexInputStateCI;
 	pipelineCI.pInputAssemblyState			= &inputAssemblyStateCI;
 	pipelineCI.pRasterizationState			= &rasterizationStateCI;
 	pipelineCI.pColorBlendState				= &colorBlendStateCI;
@@ -1080,7 +1079,7 @@ void VulkanExample::preparePipelines()
 	pipelineCI.stageCount					= static_cast<uint32_t>(shaderStages.size());
 	pipelineCI.pStages						= shaderStages.data();
 
-	/*
+	
 	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
@@ -1112,9 +1111,12 @@ void VulkanExample::preparePipelines()
 
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
 	}
-	*/
+	
 
 	// Viewdisp pipelines setup
+	// Also make the semaphore
+	VkSemaphoreCreateInfo semaphore_ci = vks::initializers::semaphoreCreateInfo();
+	VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphore_ci, nullptr, &multiview_pass.semaphore));
 
 	// Viewdisplay for multiview
 	VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
@@ -1218,12 +1220,52 @@ void VulkanExample::prepare()
 	setupDescriptors();
 	preparePipelines();
 	buildCommandBuffers();
+
+	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+	multiview_pass.wait_fences.resize(multiview_pass.command_buffers.size());
+	for(uint32_t i = 0; i < multiview_pass.wait_fences.size(); i++)
+	{
+		VK_CHECK_RESULT(vkCreateFence(device, &multiview_fence_ci, nullptr, &multiview_pass.wait_fences[i]));
+	}
+
+
 	prepared = true;
+}
+
+void VulkanExample::draw()
+{
+	VulkanExampleBase::prepareFrame();
+
+	// Multiview offscreen render
+	
+	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
+	VK_CHECK_RESULT(vkResetFences(device, 1, &multiview_pass.wait_fences[currentBuffer]));
+	submitInfo.pWaitSemaphores = &semaphores.presentComplete;
+	submitInfo.pSignalSemaphores = &multiview_pass.semaphore;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &multiview_pass.command_buffers[currentBuffer];
+	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, multiview_pass.wait_fences[currentBuffer]));
+
+
+
+
+	// View display
+	VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX));
+	VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));
+	submitInfo.pWaitSemaphores = &multiview_pass.semaphore;
+	submitInfo.pSignalSemaphores = &semaphores.renderComplete;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
+	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
+
+	VulkanExampleBase::submitFrame();
+
 }
 
 void VulkanExample::render()
 {
-	renderFrame();
+	draw();
+
 	if(camera.updated)
 	{
 		updateUniformBuffers();
