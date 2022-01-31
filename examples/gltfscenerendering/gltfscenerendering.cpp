@@ -410,8 +410,8 @@ VulkanExample::VulkanExample() :
 VulkanExample::~VulkanExample()
 {
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.matrices, nullptr);
-	vkDestroyDescriptorSetLayout(device, descriptorSetLayouts.textures, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptor_set_layouts.matrices, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptor_set_layouts.textures, nullptr);
 	shaderData.buffer.destroy();
 
 	// Multiview destroyers
@@ -446,17 +446,17 @@ void VulkanExample::setup_multiview()
 	// Colour attachment setup
 	{
 		VkImageCreateInfo image_ci = {
-			.sType		 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			.pNext		 = nullptr,
-			.flags		 = 0,
-			.imageType	 = VK_IMAGE_TYPE_2D,
-			.format		 = swapChain.colorFormat,
-			.extent		 = {width, height, 1},
-			.mipLevels	 = 1,
-			.arrayLayers = multiview_layers,
-			.samples	 = VK_SAMPLE_COUNT_1_BIT,
-			.tiling		 = VK_IMAGE_TILING_OPTIMAL,
-			.usage		 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			.sType		   = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.pNext		   = nullptr,
+			.flags		   = 0,
+			.imageType	   = VK_IMAGE_TYPE_2D,
+			.format		   = swapChain.colorFormat,
+			.extent		   = {width, height, 1},
+			.mipLevels	   = 1,
+			.arrayLayers   = multiview_layers,
+			.samples	   = VK_SAMPLE_COUNT_1_BIT,
+			.tiling		   = VK_IMAGE_TILING_OPTIMAL,
+			.usage		   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		};
 		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.colour.image));
@@ -770,11 +770,11 @@ void VulkanExample::buildCommandBuffers()
 		{
 			renderPassBeginInfo.framebuffer = multiview_pass.framebuffer;
 			VK_CHECK_RESULT(vkBeginCommandBuffer(multiview_pass.command_buffers[i], &cmdBufInfo));
-			
+
 			vkCmdBeginRenderPass(multiview_pass.command_buffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdSetViewport(multiview_pass.command_buffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(multiview_pass.command_buffers[i], 0, 1, &scissor);
-			
+
 			// Bind scene matrices descriptor to set 0
 			vkCmdBindDescriptorSets(multiview_pass.command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
@@ -913,6 +913,9 @@ void VulkanExample::setupDescriptors()
      matrices and materials (textures)
   */
 
+	// ========================================================================
+	//							SETUP FOR POOL
+	// ========================================================================
 	// One ubo to pass dynamic data to the shader
 	// Two combined image samplers per material as each material uses color and
 	// normal maps
@@ -926,6 +929,9 @@ void VulkanExample::setupDescriptors()
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount);
 	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
+	// ========================================================================
+	//							SETUP FOR MATRIX SETS
+	// ========================================================================
 
 	// Descriptor set layout for passing matrices
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -933,8 +939,13 @@ void VulkanExample::setupDescriptors()
 	};
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptor_set_layouts.matrices));
 
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.matrices));
+
+
+	// ========================================================================
+	//							SETUP FOR MATERIAL SETS
+	// ========================================================================
 
 	// Descriptor set layout for passing material textures
 	setLayoutBindings = {
@@ -946,11 +957,17 @@ void VulkanExample::setupDescriptors()
 
 	descriptorSetLayoutCI.pBindings	   = setLayoutBindings.data();
 	descriptorSetLayoutCI.bindingCount = 2;
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptorSetLayouts.textures));
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptor_set_layouts.textures));
+
+
+	// ========================================================================
+	//							MULTIVIEW PIPELINE LAYOUT
+	// ========================================================================
+
 
 	// Pipeline layout using both descriptor sets (set 0 = matrices, set 1 =
 	// material)
-	std::array<VkDescriptorSetLayout, 2> setLayouts = {descriptorSetLayouts.matrices, descriptorSetLayouts.textures};
+	std::array<VkDescriptorSetLayout, 2> setLayouts = {descriptor_set_layouts.matrices, descriptor_set_layouts.textures};
 	VkPipelineLayoutCreateInfo pipelineLayoutCI		= vks::initializers::pipelineLayoutCreateInfo(setLayouts.data(), static_cast<uint32_t>(setLayouts.size()));
 
 	// We will use push constants to push the local matrices of a primitive to the
@@ -962,7 +979,7 @@ void VulkanExample::setupDescriptors()
 	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 
 	// Descriptor set for scene matrices
-	VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.matrices, 1);
+	VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.matrices, 1);
 	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
 
 	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &shaderData.buffer.descriptor);
@@ -971,7 +988,7 @@ void VulkanExample::setupDescriptors()
 	// Descriptor sets for materials
 	for(uint32_t i = 0; i < glTFScene.materials.size(); i++)
 	{
-		const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.textures, 1);
+		const VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.textures, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &glTFScene.materials[i].descriptorSet));
 
 		VkDescriptorImageInfo colorMap	= glTFScene.getTextureDescriptor(glTFScene.materials[i].baseColorTextureIndex);
@@ -984,38 +1001,46 @@ void VulkanExample::setupDescriptors()
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
-	
+
 
 	// Viewdisplay pipeline stuff
-	{
-		// descriptor set layout
-		std::vector<VkDescriptorSetLayoutBinding> viewdisp_layout_bindings = {
-			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 1),
-		};
 
-		VkDescriptorSetLayoutCreateInfo viewdisp_desc_layout = vks::initializers::descriptorSetLayoutCreateInfo(viewdisp_layout_bindings);		
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &viewdisp_desc_layout, nullptr, &descriptorSetLayouts.viewdisp));
+	// ========================================================================
+	//							VIEWDISP SET LAYOUT
+	// ========================================================================
+	// descriptor set layout
+	std::vector<VkDescriptorSetLayoutBinding> viewdisp_layout_bindings = {
+		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 1),
+	};
 
-		// pipeline layout
-		VkPipelineLayoutCreateInfo viewdisp_pl_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayouts.viewdisp, 1);
-		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &viewdisp_pipeline_layout));
+	VkDescriptorSetLayoutCreateInfo viewdisp_desc_layout = vks::initializers::descriptorSetLayoutCreateInfo(viewdisp_layout_bindings);
+	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &viewdisp_desc_layout, nullptr, &descriptor_set_layouts.viewdisp));
+
+	// ========================================================================
+	//							VIEWDISP PIPELINE LAYOUT
+	// ========================================================================
+
+	// pipeline layout
+	VkPipelineLayoutCreateInfo viewdisp_pl_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&descriptor_set_layouts.viewdisp, 1);
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &viewdisp_pipeline_layout));
 
 
-		// Setup viewdisp descriptor set
-		VkDescriptorSetAllocateInfo set_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayouts.viewdisp, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &set_ai, &viewdisp_descriptor_set));
+	// Setup viewdisp descriptor set
+	VkDescriptorSetAllocateInfo set_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.viewdisp, 1);
+	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &set_ai, &viewdisp_descriptor_set));
 
-		// Write descsets for viewdisp pipeline
-		std::vector<VkWriteDescriptorSet> viewdisp_write_desc_sets = {
-			vks::initializers::writeDescriptorSet(viewdisp_descriptor_set, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &multiview_pass.descriptor),
-		};
-		vkUpdateDescriptorSets(device, viewdisp_write_desc_sets.size(), viewdisp_write_desc_sets.data(), 0, nullptr);
-	}
+	// Write descsets for viewdisp pipeline
+	std::vector<VkWriteDescriptorSet> viewdisp_write_desc_sets = {
+		vks::initializers::writeDescriptorSet(viewdisp_descriptor_set, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &multiview_pass.descriptor),
+	};
+	vkUpdateDescriptorSets(device, viewdisp_write_desc_sets.size(), viewdisp_write_desc_sets.data(), 0, nullptr);
 }
 
 void VulkanExample::preparePipelines()
 {
-	// First, query for multiview support stuff
+	// ========================================================================
+	//							MULTIVIEW PROPERTIES SETUP
+	// ========================================================================
 	VkPhysicalDeviceFeatures2KHR multiview_device_features2{};
 	VkPhysicalDeviceMultiviewFeaturesKHR multiview_extension_features{};
 	multiview_extension_features.sType									= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR;
@@ -1041,6 +1066,10 @@ void VulkanExample::preparePipelines()
 	std::cout << "\tmaxMultiviewInstanceIndex = " << extension_properties.maxMultiviewInstanceIndex << std::endl;
 
 
+	// ========================================================================
+	//							GENERAL GRAPHICS PIPELINE SETUP
+	// ========================================================================
+
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
 	VkPipelineRasterizationStateCreateInfo rasterizationStateCI = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
 	VkPipelineColorBlendAttachmentState blendAttachmentStateCI	= vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
@@ -1053,7 +1082,9 @@ void VulkanExample::preparePipelines()
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
-	
+	// ========================================================================
+	//							MULTIVIEW GRAPHICS PIPELINE SETUP
+	// ========================================================================
 	const std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
 		vks::initializers::vertexInputBindingDescription(0, sizeof(VulkanglTFScene::Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
 	};
@@ -1064,9 +1095,9 @@ void VulkanExample::preparePipelines()
 		vks::initializers::vertexInputAttributeDescription(0, 2, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, uv)),
 		vks::initializers::vertexInputAttributeDescription(0, 3, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, color)),
 		vks::initializers::vertexInputAttributeDescription(0, 4, VK_FORMAT_R32G32B32_SFLOAT, offsetof(VulkanglTFScene::Vertex, tangent)),
-	}; 
+	};
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCI = vks::initializers::pipelineVertexInputStateCreateInfo(vertexInputBindings, vertexInputAttributes);
-	
+
 	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, multiview_pass.renderpass, 0);
 	pipelineCI.pVertexInputState			= &vertexInputStateCI;
 	pipelineCI.pInputAssemblyState			= &inputAssemblyStateCI;
@@ -1079,7 +1110,7 @@ void VulkanExample::preparePipelines()
 	pipelineCI.stageCount					= static_cast<uint32_t>(shaderStages.size());
 	pipelineCI.pStages						= shaderStages.data();
 
-	
+
 	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
@@ -1111,7 +1142,14 @@ void VulkanExample::preparePipelines()
 
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
 	}
-	
+
+
+	// ========================================================================
+	//							VIEWDISP GRAPHICS PIPELINE SETUP
+	// ========================================================================
+
+	// Set the rasterization state cullmode to frontbit
+	rasterizationStateCI.cullMode = VK_CULL_MODE_FRONT_BIT;
 
 	// Viewdisp pipelines setup
 	// Also make the semaphore
@@ -1237,13 +1275,13 @@ void VulkanExample::draw()
 	VulkanExampleBase::prepareFrame();
 
 	// Multiview offscreen render
-	
+
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
 	VK_CHECK_RESULT(vkResetFences(device, 1, &multiview_pass.wait_fences[currentBuffer]));
-	submitInfo.pWaitSemaphores = &semaphores.presentComplete;
-	submitInfo.pSignalSemaphores = &multiview_pass.semaphore;
+	submitInfo.pWaitSemaphores	  = &semaphores.presentComplete;
+	submitInfo.pSignalSemaphores  = &multiview_pass.semaphore;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &multiview_pass.command_buffers[currentBuffer];
+	submitInfo.pCommandBuffers	  = &multiview_pass.command_buffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, multiview_pass.wait_fences[currentBuffer]));
 
 
@@ -1252,14 +1290,13 @@ void VulkanExample::draw()
 	// View display
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX));
 	VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));
-	submitInfo.pWaitSemaphores = &multiview_pass.semaphore;
-	submitInfo.pSignalSemaphores = &semaphores.renderComplete;
+	submitInfo.pWaitSemaphores	  = &multiview_pass.semaphore;
+	submitInfo.pSignalSemaphores  = &semaphores.renderComplete;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
+	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
 	VulkanExampleBase::submitFrame();
-
 }
 
 void VulkanExample::render()

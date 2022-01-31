@@ -175,12 +175,17 @@ class VulkanExample : public VulkanExampleBase
 	VkPipelineLayout pipelineLayout;
 	VkDescriptorSet descriptorSet;
 
-	struct DescriptorSetLayouts
+	struct
+	{
+		VkDescriptorSet multiview;
+		VkDescriptorSet viewdisp;
+	} descriptor_sets;
+	struct
 	{
 		VkDescriptorSetLayout matrices;
 		VkDescriptorSetLayout textures;
 		VkDescriptorSetLayout viewdisp;
-	} descriptorSetLayouts;
+	} descriptor_set_layouts;
 
 	// Imported stuff from multiview/multiview.cpp
 	VkPipeline viewdisp_pipelines[2];
