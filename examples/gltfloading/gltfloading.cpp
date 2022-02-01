@@ -582,7 +582,7 @@ public:
 
 	void loadAssets()
 	{
-		loadglTFFile(getAssetPath() + "models/FlightHelmet/glTF/FlightHelmet.gltf");
+		loadglTFFile(getAssetPath() + "models/sponza.gltf");
 	}
 
 	void setupDescriptors()

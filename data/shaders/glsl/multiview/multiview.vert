@@ -12,7 +12,7 @@ layout (location = 2) out vec3 outViewVec;
 layout (location = 3) out vec3 outLightVec;
 
 
-layout (binding = 0) uniform UBO 
+layout (set = 0, binding = 0) uniform UBO 
 {
 	mat4 projection[2];
 	mat4 modelview[2];

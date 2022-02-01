@@ -195,6 +195,7 @@ class VulkanExample : public VulkanExampleBase
 
 	// Imported stuff from multiview/multiview.cpp
 	VkPipeline viewdisp_pipelines[2];
+	VkPipeline material_pipeline;
 
 	struct MultiviewPass
 	{

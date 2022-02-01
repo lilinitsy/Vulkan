@@ -271,6 +271,12 @@ namespace vks
 			enableDebugMarkers = true;
 		}
 
+		if(extensionSupported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
+		{
+			deviceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+			enableDebugMarkers = true;
+		}
+
 		if (deviceExtensions.size() > 0)
 		{
 			for (const char* enabledExtension : deviceExtensions)

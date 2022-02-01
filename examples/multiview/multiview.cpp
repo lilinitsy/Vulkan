@@ -44,8 +44,19 @@ public:
 
 	VkPipeline pipeline;
 	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descriptorSet;
-	VkDescriptorSetLayout descriptorSetLayout;
+
+	struct
+	{
+		VkDescriptorSet viewdisp;
+		VkDescriptorSet multiview_matrices;
+	} descriptor_sets;
+
+	struct
+	{
+		VkDescriptorSetLayout viewdisp;
+		VkDescriptorSetLayout multiview_matrices;
+		VkDescriptorSetLayout multiview_textures;
+	} descriptor_set_layouts;
 
 	VkPipeline viewDisplayPipelines[2];
 
@@ -83,7 +94,7 @@ public:
 		vkDestroyPipeline(device, pipeline, nullptr);
 
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device, descriptor_set_layouts.viewdisp, nullptr);
 
 		// Multiview pass
 
@@ -366,7 +377,7 @@ public:
 				vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 				vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
-				vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+				vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
 				// Left eye
 				vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewDisplayPipelines[0]);
@@ -423,7 +434,7 @@ public:
 				VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
 				vkCmdSetScissor(multiviewPass.commandBuffers[i], 0, 1, &scissor);
 
-				vkCmdBindDescriptorSets(multiviewPass.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+				vkCmdBindDescriptorSets(multiviewPass.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 				vkCmdBindPipeline(multiviewPass.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 				scene.draw(multiviewPass.commandBuffers[i]);
 
@@ -445,9 +456,11 @@ public:
 		*/
 		std::vector<VkDescriptorPoolSize> poolSizes = {
 			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
+			vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, scene.materials.size() * 2 + 3),
 		};
-		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), 1);
+		
+		uint32_t max_set_count = scene.textures.size() + 1;
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), max_set_count);
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 		/*
@@ -458,20 +471,48 @@ public:
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
 		};
 		VkDescriptorSetLayoutCreateInfo descriptorLayout = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings);
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptorSetLayout));
-		VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =vks::initializers::pipelineLayoutCreateInfo(&descriptorSetLayout, 1);
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &descriptor_set_layouts.viewdisp));
+		VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =vks::initializers::pipelineLayoutCreateInfo(&descriptor_set_layouts.viewdisp, 1);
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
+
+		// Material textures
+		setLayoutBindings = {
+			// Color map
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0),
+			// Normal map
+			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1),
+		};
 
 		/*
 			Descriptors
 		*/
-		VkDescriptorSetAllocateInfo allocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
-		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocateInfo, &descriptorSet));
+
+		// Materials
+		for(vkglTF::Material material : scene.materials)
+		{
+			VkDescriptorSetAllocateInfo descset_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.multiview_textures, 1);
+			VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &descset_ai, &material.descriptorSet));
+			
+			VkDescriptorImageInfo colour_map = material.baseColorTexture->descriptor;
+			VkDescriptorImageInfo normal_map = material.normalTexture->descriptor;
+
+			std::vector<VkWriteDescriptorSet> write_descriptor_sets = {
+				vks::initializers::writeDescriptorSet(material.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &colour_map),
+				vks::initializers::writeDescriptorSet(material.descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &normal_map),
+			};
+
+			vkUpdateDescriptorSets(device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
+		}
+
+
+		VkDescriptorSetAllocateInfo allocateInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.viewdisp, 1);
+		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocateInfo, &descriptor_sets.viewdisp));
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
-			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffer.descriptor),
-			vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &multiviewPass.descriptor),
+			vks::initializers::writeDescriptorSet(descriptor_sets.viewdisp, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &uniformBuffer.descriptor),
+			vks::initializers::writeDescriptorSet(descriptor_sets.viewdisp, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, &multiviewPass.descriptor),
 		};
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+		
 	}
 
 	void preparePipelines()
@@ -541,6 +582,7 @@ public:
 		shaderStages[1] = loadShader(getShadersPath() + "multiview/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		pipelineCI.stageCount = 2;
 		pipelineCI.pStages = shaderStages.data();
+		
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipeline));
 
 		/*
@@ -562,7 +604,8 @@ public:
 		/*
 			Separate pipelines per eye (view) using specialization constants to set view array layer to sample from
 		*/
-		for (uint32_t i = 0; i < 2; i++) {
+		for (uint32_t i = 0; i < 2; i++)
+		{
 			shaderStages[0] = loadShader(getShadersPath() + "multiview/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 			shaderStages[1] = loadShader(getShadersPath() + "multiview/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 			shaderStages[1].pSpecializationInfo = &specializationInfo;

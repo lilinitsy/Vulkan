@@ -7,6 +7,9 @@ layout (location = 3) in vec3 inLightVec;
 
 layout (location = 0) out vec4 outColor;
 
+layout(set = 1, binding = 0) uniform sampler2D sampler_colour_map;
+layout(set = 1, binding = 1) uniform sampler2D sampler_normal_map;
+
 void main() 
 {
 	vec3 N = normalize(inNormal);

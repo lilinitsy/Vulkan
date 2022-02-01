@@ -351,6 +351,7 @@ void VulkanglTFScene::drawNode(VkCommandBuffer commandBuffer,
 				vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
 										pipelineLayout, 1, 1, &material.descriptorSet,
 										0, nullptr);
+
 				vkCmdDrawIndexed(commandBuffer, primitive.indexCount, 1,
 								 primitive.firstIndex, 0, 0);
 			}
@@ -781,7 +782,7 @@ void VulkanExample::buildCommandBuffers()
 			// POI: Draw the glTF scene
 			glTFScene.draw(multiview_pass.command_buffers[i], pipeline_layouts.multiview);
 
-			drawUI(multiview_pass.command_buffers[i]);
+			//drawUI(multiview_pass.command_buffers[i]);
 			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
 		}
@@ -1114,8 +1115,37 @@ void VulkanExample::preparePipelines()
 	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
+	struct MaterialSpecializationData
+	{
+		VkBool32 alphaMask;
+		float alphaMaskCutoff;
+	} materialSpecializationData;
+
+	materialSpecializationData.alphaMask						   = VK_TRUE;
+	materialSpecializationData.alphaMaskCutoff					   = 0.5f;
+	std::vector<VkSpecializationMapEntry> specializationMapEntries = {
+		vks::initializers::specializationMapEntry(0, offsetof(MaterialSpecializationData, alphaMask), sizeof(MaterialSpecializationData::alphaMask)),
+		vks::initializers::specializationMapEntry(1, offsetof(MaterialSpecializationData, alphaMaskCutoff), sizeof(MaterialSpecializationData::alphaMaskCutoff)),
+	};
+
+	VkSpecializationInfo specializationInfo = vks::initializers::specializationInfo(specializationMapEntries, sizeof(materialSpecializationData), &materialSpecializationData);
+	shaderStages[1].pSpecializationInfo		= &specializationInfo;
+
+	// For double sided materials, culling will be disabled
+	rasterizationStateCI.cullMode = VK_CULL_MODE_BACK_BIT;
+	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material_pipeline));
+
+	for(VulkanglTFScene::Material &material : glTFScene.materials)
+	{
+		material.pipeline = material_pipeline;
+	}
+
+
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
 	// each material using the properties of that material
+	
+	/*
+	uint64_t matcounter = 0;
 	for(VulkanglTFScene::Material &material : glTFScene.materials)
 	{
 		struct MaterialSpecializationData
@@ -1139,10 +1169,25 @@ void VulkanExample::preparePipelines()
 
 		// For double sided materials, culling will be disabled
 		rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-
+		
+	
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
-	}
+		
+		std::string matname = "Material " + matcounter;
+		*/
+		// Name the debug utils object
+		/*VkDebugUtilsObjectNameInfoEXT material_debug_name = {
+			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+			.pNext = nullptr,
+			.objectType = VK_OBJECT_TYPE_PIPELINE,
+			.objectHandle = (uint64_t) material.pipeline,
+			.pObjectName = matname.c_str(),
+		};
 
+		vkSetDebugUtilsObjectNameEXT(device, &material_debug_name);
+		matcounter++;
+	}*/
+	
 
 	// ========================================================================
 	//							VIEWDISP GRAPHICS PIPELINE SETUP
