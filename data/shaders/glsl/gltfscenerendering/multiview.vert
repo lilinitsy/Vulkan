@@ -16,7 +16,7 @@ layout (location = 4) out vec3 outLightVec;
 layout (location = 5) out vec4 outTangent;
 
 
-layout (binding = 0) uniform UBO 
+layout (set = 0, binding = 0) uniform UBO 
 {
 	mat4 projection[2];
 	mat4 view[2];
