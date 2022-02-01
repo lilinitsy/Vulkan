@@ -172,14 +172,20 @@ class VulkanExample : public VulkanExampleBase
 		} values;
 	} shaderData;
 
-	VkPipelineLayout pipelineLayout;
-	VkDescriptorSet descriptorSet;
+
+	struct
+	{
+		VkPipelineLayout multiview;
+		VkPipelineLayout viewdisp;
+	} pipeline_layouts;
 
 	struct
 	{
 		VkDescriptorSet multiview;
 		VkDescriptorSet viewdisp;
 	} descriptor_sets;
+
+
 	struct
 	{
 		VkDescriptorSetLayout matrices;
@@ -189,8 +195,6 @@ class VulkanExample : public VulkanExampleBase
 
 	// Imported stuff from multiview/multiview.cpp
 	VkPipeline viewdisp_pipelines[2];
-	VkPipelineLayout viewdisp_pipeline_layout;
-	VkDescriptorSet viewdisp_descriptor_set;
 
 	struct MultiviewPass
 	{

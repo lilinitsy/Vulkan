@@ -409,7 +409,7 @@ VulkanExample::VulkanExample() :
 
 VulkanExample::~VulkanExample()
 {
-	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyPipelineLayout(device, pipeline_layouts.multiview, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptor_set_layouts.matrices, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptor_set_layouts.textures, nullptr);
 	shaderData.buffer.destroy();
@@ -718,7 +718,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			// Bind descriptor set
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipeline_layout, 0, 1, &viewdisp_descriptor_set, 0, nullptr);
+			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
 			// Left eye
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
@@ -776,10 +776,10 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdSetScissor(multiview_pass.command_buffers[i], 0, 1, &scissor);
 
 			// Bind scene matrices descriptor to set 0
-			vkCmdBindDescriptorSets(multiview_pass.command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+			vkCmdBindDescriptorSets(multiview_pass.command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.multiview, 0, 1, &descriptor_sets.multiview, 0, nullptr);
 
 			// POI: Draw the glTF scene
-			glTFScene.draw(multiview_pass.command_buffers[i], pipelineLayout);
+			glTFScene.draw(multiview_pass.command_buffers[i], pipeline_layouts.multiview);
 
 			drawUI(multiview_pass.command_buffers[i]);
 			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
@@ -911,7 +911,7 @@ void VulkanExample::setupDescriptors()
 	/*
           This sample uses separate descriptor sets (and layouts) for the
      matrices and materials (textures)
-  */
+  	*/
 
 	// ========================================================================
 	//							SETUP FOR POOL
@@ -976,13 +976,13 @@ void VulkanExample::setupDescriptors()
 	// Push constant ranges are part of the pipeline layout
 	pipelineLayoutCI.pushConstantRangeCount = 1;
 	pipelineLayoutCI.pPushConstantRanges	= &pushConstantRange;
-	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipeline_layouts.multiview));
 
 	// Descriptor set for scene matrices
 	VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.matrices, 1);
-	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
+	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptor_sets.multiview));
 
-	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &shaderData.buffer.descriptor);
+	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptor_sets.multiview, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &shaderData.buffer.descriptor);
 	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 
 	// Descriptor sets for materials
@@ -1022,16 +1022,16 @@ void VulkanExample::setupDescriptors()
 
 	// pipeline layout
 	VkPipelineLayoutCreateInfo viewdisp_pl_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&descriptor_set_layouts.viewdisp, 1);
-	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &viewdisp_pipeline_layout));
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &pipeline_layouts.viewdisp));
 
 
 	// Setup viewdisp descriptor set
 	VkDescriptorSetAllocateInfo set_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.viewdisp, 1);
-	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &set_ai, &viewdisp_descriptor_set));
+	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &set_ai, &descriptor_sets.viewdisp));
 
 	// Write descsets for viewdisp pipeline
 	std::vector<VkWriteDescriptorSet> viewdisp_write_desc_sets = {
-		vks::initializers::writeDescriptorSet(viewdisp_descriptor_set, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &multiview_pass.descriptor),
+		vks::initializers::writeDescriptorSet(descriptor_sets.viewdisp, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &multiview_pass.descriptor),
 	};
 	vkUpdateDescriptorSets(device, viewdisp_write_desc_sets.size(), viewdisp_write_desc_sets.data(), 0, nullptr);
 }
@@ -1098,7 +1098,7 @@ void VulkanExample::preparePipelines()
 	};
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCI = vks::initializers::pipelineVertexInputStateCreateInfo(vertexInputBindings, vertexInputAttributes);
 
-	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipelineLayout, multiview_pass.renderpass, 0);
+	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipeline_layouts.multiview, multiview_pass.renderpass, 0);
 	pipelineCI.pVertexInputState			= &vertexInputStateCI;
 	pipelineCI.pInputAssemblyState			= &inputAssemblyStateCI;
 	pipelineCI.pRasterizationState			= &rasterizationStateCI;
@@ -1177,7 +1177,7 @@ void VulkanExample::preparePipelines()
 
 		VkPipelineVertexInputStateCreateInfo empty_input_state = vks::initializers::pipelineVertexInputStateCreateInfo();
 		pipelineCI.pVertexInputState						   = &empty_input_state;
-		pipelineCI.layout									   = viewdisp_pipeline_layout;
+		pipelineCI.layout									   = pipeline_layouts.viewdisp;
 		pipelineCI.pStages									   = viewdisp_shader_stages;
 		pipelineCI.renderPass								   = renderPass;
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewdisp_pipelines[i]));
