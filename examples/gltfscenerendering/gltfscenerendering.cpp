@@ -1135,17 +1135,8 @@ void VulkanExample::preparePipelines()
 	rasterizationStateCI.cullMode = VK_CULL_MODE_BACK_BIT;
 	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material_pipeline));
 
-	for(VulkanglTFScene::Material &material : glTFScene.materials)
-	{
-		material.pipeline = material_pipeline;
-	}
-
-
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
 	// each material using the properties of that material
-	
-	/*
-	uint64_t matcounter = 0;
 	for(VulkanglTFScene::Material &material : glTFScene.materials)
 	{
 		struct MaterialSpecializationData
@@ -1172,21 +1163,7 @@ void VulkanExample::preparePipelines()
 		
 	
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
-		
-		std::string matname = "Material " + matcounter;
-		*/
-		// Name the debug utils object
-		/*VkDebugUtilsObjectNameInfoEXT material_debug_name = {
-			.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-			.pNext = nullptr,
-			.objectType = VK_OBJECT_TYPE_PIPELINE,
-			.objectHandle = (uint64_t) material.pipeline,
-			.pObjectName = matname.c_str(),
-		};
-
-		vkSetDebugUtilsObjectNameEXT(device, &material_debug_name);
-		matcounter++;
-	}*/
+	}
 	
 
 	// ========================================================================
