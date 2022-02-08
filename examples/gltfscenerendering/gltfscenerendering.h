@@ -168,7 +168,7 @@ class VulkanExample : public VulkanExampleBase
 			glm::mat4 projection[2];
 			glm::mat4 view[2];
 			glm::vec4 lightPos = glm::vec4(0.0f, 2.5f, 0.0f, 1.0f);
-			glm::vec4 viewPos;
+			//glm::vec4 viewPos;
 		} values;
 	} shaderData;
 

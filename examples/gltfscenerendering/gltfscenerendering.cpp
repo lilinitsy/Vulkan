@@ -388,10 +388,10 @@ VulkanExample::VulkanExample() :
 {
 	title		 = "glTF scene rendering";
 	camera.type	 = Camera::CameraType::firstperson;
-	camera.flipY = true;
-	camera.setPosition(glm::vec3(0.0f, 1.0f, 0.0f));
-	camera.setRotation(glm::vec3(0.0f, -90.0f, 0.0f));
-	camera.setPerspective(60.0f, (float) width / (float) height, 0.1f, 256.0f);
+	//camera.flipY = true;
+	camera.setTranslation(glm::vec3(7.0f, 3.2f, 0.0f));
+	camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
+	//camera.setPerspective(60.0f, (float) width / (float) height, 0.1f, 256.0f);
 
 	// Multiview setup
 	// Enable extension required for multiview
@@ -1115,25 +1115,6 @@ void VulkanExample::preparePipelines()
 	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
-	struct MaterialSpecializationData
-	{
-		VkBool32 alphaMask;
-		float alphaMaskCutoff;
-	} materialSpecializationData;
-
-	materialSpecializationData.alphaMask						   = VK_TRUE;
-	materialSpecializationData.alphaMaskCutoff					   = 0.5f;
-	std::vector<VkSpecializationMapEntry> specializationMapEntries = {
-		vks::initializers::specializationMapEntry(0, offsetof(MaterialSpecializationData, alphaMask), sizeof(MaterialSpecializationData::alphaMask)),
-		vks::initializers::specializationMapEntry(1, offsetof(MaterialSpecializationData, alphaMaskCutoff), sizeof(MaterialSpecializationData::alphaMaskCutoff)),
-	};
-
-	VkSpecializationInfo specializationInfo = vks::initializers::specializationInfo(specializationMapEntries, sizeof(materialSpecializationData), &materialSpecializationData);
-	shaderStages[1].pSpecializationInfo		= &specializationInfo;
-
-	// For double sided materials, culling will be disabled
-	rasterizationStateCI.cullMode = VK_CULL_MODE_BACK_BIT;
-	VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material_pipeline));
 
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
 	// each material using the properties of that material
@@ -1159,12 +1140,18 @@ void VulkanExample::preparePipelines()
 		shaderStages[1].pSpecializationInfo		= &specializationInfo;
 
 		// For double sided materials, culling will be disabled
-		rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-		
-	
+		//rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+		rasterizationStateCI.cullMode = VK_CULL_MODE_NONE;
+
+		/*
+		Possile issues: viewdir with inNormals either with viewdir or with normals flipped
+
+		*/
+
+
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
 	}
-	
+
 
 	// ========================================================================
 	//							VIEWDISP GRAPHICS PIPELINE SETUP
@@ -1248,12 +1235,13 @@ void VulkanExample::updateUniformBuffers()
 	left  = -aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 	right = aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 
-	transM							= glm::translate(glm::mat4(1.0f), camera.position - camRight * (eyeSeparation / 2.0f));
+	transM = glm::translate(glm::mat4(1.0f), camera.position - camRight * (eyeSeparation / 2.0f));
+
 	shaderData.values.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
+	shaderData.values.view[0]		= rotM * transM; // camera.matrices.view;
 
 
-	shaderData.values.projection[0] = camera.matrices.perspective;
-	shaderData.values.view[0]		= transM; // camera.matrices.view;
+	//shaderData.values.projection[0] = camera.matrices.perspective;
 
 
 	// Right eye
@@ -1263,10 +1251,10 @@ void VulkanExample::updateUniformBuffers()
 	transM = glm::translate(glm::mat4(1.0f), camera.position + camRight * (eyeSeparation / 2.0f));
 
 	shaderData.values.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
-	shaderData.values.view[1]		= transM;
+	shaderData.values.view[1]		= rotM * transM;
 
 
-	shaderData.values.viewPos = camera.viewPos;
+	//shaderData.values.viewPos = camera.viewPos;
 
 	memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 }
