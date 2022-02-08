@@ -389,9 +389,9 @@ VulkanExample::VulkanExample() :
 	title		 = "glTF scene rendering";
 	camera.type	 = Camera::CameraType::firstperson;
 	//camera.flipY = true;
-	camera.setTranslation(glm::vec3(7.0f, 3.2f, 0.0f));
+	camera.setPosition(glm::vec3(2.2f, -2.0f, 0.25f));
 	camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
-	//camera.setPerspective(60.0f, (float) width / (float) height, 0.1f, 256.0f);
+	camera.movementSpeed = 4.0f;
 
 	// Multiview setup
 	// Enable extension required for multiview
@@ -734,7 +734,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
-			// drawUI(drawCmdBuffers[i]);
+
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1284,6 +1284,8 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
+	printf("Camera position: %f %f %f\n", camera.position.x, camera.position.y, camera.position.z);
+
 	// Multiview offscreen render
 
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
@@ -1293,8 +1295,6 @@ void VulkanExample::draw()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers	  = &multiview_pass.command_buffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, multiview_pass.wait_fences[currentBuffer]));
-
-
 
 
 	// View display

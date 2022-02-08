@@ -41,6 +41,7 @@ void main()
 	vec3 R = reflect(-L, N);
 	vec3 diffuse = max(dot(N, L), ambient).rrr;
 	float specular = pow(max(dot(R, V), 0.0), 32.0);
-	outColor = vec4(diffuse * color.rgb + specular, color.a);
+	//outColor = vec4(diffuse * color.rgb + specular, color.a);
+	outColor = color;
 
 }

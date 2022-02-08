@@ -21,7 +21,7 @@ layout (set = 0, binding = 0) uniform UBO
 	mat4 projection[2];
 	mat4 view[2];
 	vec4 lightPos;
-	vec4 viewpos;
+	//vec4 viewpos;
 } ubo;
 
 layout(push_constant) uniform PushConsts
@@ -32,6 +32,7 @@ layout(push_constant) uniform PushConsts
 void main() 
 {
 	outColor = inColor;
+	outUV = inUV;
 	outNormal = mat3(ubo.view[gl_ViewIndex] * primitive.model) * inNormal;
 
 	vec4 pos = vec4(inPos.xyz, 1.0);
