@@ -35,13 +35,13 @@ void main()
 	mat3 TBN = mat3(T, B, N);
 	N = TBN * normalize(texture(samplerNormalMap, inUV).xyz * 2.0 - vec3(1.0));
 
-	float ambient = 0.5;
+	float ambient = 0.1;
 	vec3 L = normalize(inLightVec);
 	vec3 V = normalize(inViewVec);
 	vec3 R = reflect(-L, N);
 	vec3 diffuse = max(dot(N, L), ambient).rrr;
 	float specular = pow(max(dot(R, V), 0.0), 32.0);
-	//outColor = vec4(diffuse * color.rgb + specular, color.a);
-	outColor = color;
+	outColor = vec4(diffuse * color.rgb + specular, color.a);
+	//outColor = color;
 
 }

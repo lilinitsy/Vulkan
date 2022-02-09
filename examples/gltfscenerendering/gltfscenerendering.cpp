@@ -1254,7 +1254,7 @@ void VulkanExample::updateUniformBuffers()
 	shaderData.values.view[1]		= rotM * transM;
 
 
-	//shaderData.values.viewPos = camera.viewPos;
+	shaderData.values.viewPos = camera.viewPos;
 
 	memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 }
