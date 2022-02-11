@@ -386,8 +386,8 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer,
 VulkanExample::VulkanExample() :
 	VulkanExampleBase(ENABLE_VALIDATION, SERVERWIDTH, SERVERHEIGHT)
 {
-	title		 = "glTF scene rendering";
-	camera.type	 = Camera::CameraType::firstperson;
+	title		= "glTF scene rendering";
+	camera.type = Camera::CameraType::firstperson;
 	//camera.flipY = true;
 	camera.setPosition(glm::vec3(2.2f, -2.0f, 0.25f));
 	camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
@@ -714,7 +714,7 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
-			VkRect2D scissor	= vks::initializers::rect2D(width / 2, height, 0, 0);
+			VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
@@ -726,15 +726,17 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Right eye
-			viewport.x		 = (float) width / 2;
-			scissor.offset.x = width / 2;
+			viewport.x		 = (float) width / 2.0f;
+			scissor.offset.x = width / 2.0f;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
-
+			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
+			// DO NOT drawUI in the multiview pass.
+			//drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -782,7 +784,6 @@ void VulkanExample::buildCommandBuffers()
 			// POI: Draw the glTF scene
 			glTFScene.draw(multiview_pass.command_buffers[i], pipeline_layouts.multiview);
 
-			//drawUI(multiview_pass.command_buffers[i]);
 			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
 		}
@@ -1140,8 +1141,7 @@ void VulkanExample::preparePipelines()
 		shaderStages[1].pSpecializationInfo		= &specializationInfo;
 
 		// For double sided materials, culling will be disabled
-		//rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
-		rasterizationStateCI.cullMode = VK_CULL_MODE_NONE;
+		rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
 
 		/*
 		Possile issues: viewdir with inNormals either with viewdir or with normals flipped
@@ -1197,9 +1197,9 @@ void VulkanExample::prepareUniformBuffers()
 {
 	VK_CHECK_RESULT(vulkanDevice->createBuffer(
 		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		&shaderData.buffer, sizeof(shaderData.values)));
+		
 	VK_CHECK_RESULT(shaderData.buffer.map());
 	updateUniformBuffers();
 }
@@ -1239,9 +1239,6 @@ void VulkanExample::updateUniformBuffers()
 
 	shaderData.values.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
 	shaderData.values.view[0]		= rotM * transM; // camera.matrices.view;
-
-
-	//shaderData.values.projection[0] = camera.matrices.perspective;
 
 
 	// Right eye
@@ -1284,7 +1281,6 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
-	printf("Camera position: %f %f %f\n", camera.position.x, camera.position.y, camera.position.z);
 
 	// Multiview offscreen render
 
