@@ -388,7 +388,7 @@ VulkanExample::VulkanExample() :
 {
 	title		= "glTF scene rendering";
 	camera.type = Camera::CameraType::firstperson;
-	//camera.flipY = true;
+	camera.flipY = true;
 	camera.setPosition(glm::vec3(2.2f, -2.0f, 0.25f));
 	camera.setRotation(glm::vec3(0.0f, 90.0f, 0.0f));
 	camera.movementSpeed = 4.0f;
@@ -1210,18 +1210,18 @@ void VulkanExample::updateUniformBuffers()
 	// See http://paulbourke.net/stereographics/stereorender/
 
 	// Calculate some variables
-	float aspectRatio = (float) (width * 0.5f) / (float) height;
-	float wd2		  = zNear * tan(glm::radians(fov / 2.0f));
-	float ndfl		  = zNear / focalLength;
+	float aspectRatio = (float)(width * 0.5f) / (float)height;
+	float wd2 = zNear * tan(glm::radians(fov / 2.0f));
+	float ndfl = zNear / focalLength;
 	float left, right;
-	float top	 = wd2;
+	float top = wd2;
 	float bottom = -wd2;
 
 	glm::vec3 camFront;
-	camFront.x		   = -cos(glm::radians(camera.rotation.x)) * sin(glm::radians(camera.rotation.y));
-	camFront.y		   = sin(glm::radians(camera.rotation.x));
-	camFront.z		   = cos(glm::radians(camera.rotation.x)) * cos(glm::radians(camera.rotation.y));
-	camFront		   = glm::normalize(camFront);
+	camFront.x = -cos(glm::radians(camera.rotation.x)) * sin(glm::radians(camera.rotation.y));
+	camFront.y = -sin(glm::radians(camera.rotation.x));
+	camFront.z = cos(glm::radians(camera.rotation.x)) * cos(glm::radians(camera.rotation.y));
+	camFront = glm::normalize(camFront);
 	glm::vec3 camRight = glm::normalize(glm::cross(camFront, glm::vec3(0.0f, 1.0f, 0.0f)));
 
 	glm::mat4 rotM = glm::mat4(1.0f);
@@ -1230,28 +1230,30 @@ void VulkanExample::updateUniformBuffers()
 	rotM = glm::rotate(rotM, glm::radians(camera.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
 	rotM = glm::rotate(rotM, glm::radians(camera.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 	rotM = glm::rotate(rotM, glm::radians(camera.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+	printf("ROTM:\n");
+
+	for(int i = 0; i < 4; i++)
+	{
+		rotM[i][0] *= -1.0f;
+	}
 
 	// Left eye
-	left  = -aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
+	left = -aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 	right = aspectRatio * wd2 + 0.5f * eyeSeparation * ndfl;
 
 	transM = glm::translate(glm::mat4(1.0f), camera.position - camRight * (eyeSeparation / 2.0f));
 
 	shaderData.values.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
-	shaderData.values.view[0]		= rotM * transM; // camera.matrices.view;
-
+	shaderData.values.view[0] = rotM * transM;
 
 	// Right eye
-	left  = -aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
+	left = -aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
 	right = aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
 
 	transM = glm::translate(glm::mat4(1.0f), camera.position + camRight * (eyeSeparation / 2.0f));
 
 	shaderData.values.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
-	shaderData.values.view[1]		= rotM * transM;
-
-
-	shaderData.values.viewPos = camera.viewPos;
+	shaderData.values.view[1] = rotM * transM;
 
 	memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 }
@@ -1311,6 +1313,8 @@ void VulkanExample::render()
 
 	if(camera.updated)
 	{
+		printf("Position: %f %f %f\n", camera.position.x, camera.position.y, camera.position.z);
+		printf("Rotation: %f %f %f\n", camera.rotation.x, camera.rotation.y, camera.rotation.z);
 		updateUniformBuffers();
 	}
 }

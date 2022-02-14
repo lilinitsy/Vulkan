@@ -27,20 +27,19 @@ void main()
 		}
 	}
 
-
-
+	
 	vec3 N = normalize(inNormal);
 	vec3 T = normalize(inTangent.xyz);
 	vec3 B = cross(inNormal, inTangent.xyz) * inTangent.w;
 	mat3 TBN = mat3(T, B, N);
 	N = TBN * normalize(texture(samplerNormalMap, inUV).xyz * 2.0 - vec3(1.0));
 
-	float ambient = 0.1;
+	float ambient = 0.05;
 	vec3 L = normalize(inLightVec);
 	vec3 V = normalize(inViewVec);
 	vec3 R = reflect(-L, N);
 	vec3 diffuse = max(dot(N, L), ambient).rrr;
-	float specular = pow(max(dot(R, V), 0.0), 32.0);
+	float specular = clamp(pow(max(dot(R, V), 0.0), 16.0), 0.0, 0.25);
 	outColor = vec4(diffuse * color.rgb + specular, color.a);
 	//outColor = color;
 
