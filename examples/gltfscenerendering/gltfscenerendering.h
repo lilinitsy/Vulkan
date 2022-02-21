@@ -158,6 +158,7 @@ class VulkanExample : public VulkanExampleBase
   public:
 	VulkanglTFScene glTFScene;
 
+
 	struct ShaderData
 	{
 		vks::Buffer buffer;
@@ -194,17 +195,20 @@ class VulkanExample : public VulkanExampleBase
 	} descriptor_set_layouts;
 
 	// Imported stuff from multiview/multiview.cpp
+	struct FrameBufferAttachment
+	{
+		VkImage image;
+		VkDeviceMemory memory;
+		VkImageView view;
+	};
+
 	VkPipeline viewdisp_pipelines[2];
 	VkPipeline material_pipeline;
 
 	struct MultiviewPass
 	{
-		struct FrameBufferAttachment
-		{
-			VkImage image;
-			VkDeviceMemory memory;
-			VkImageView view;
-		} colour, depth;
+		FrameBufferAttachment colour;
+		FrameBufferAttachment depth;
 		VkFramebuffer framebuffer;
 		VkRenderPass renderpass;
 		VkDescriptorImageInfo descriptor;
@@ -215,6 +219,14 @@ class VulkanExample : public VulkanExampleBase
 	} multiview_pass;
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
+
+	// Multisample parts
+	struct
+	{
+		FrameBufferAttachment colour;
+		FrameBufferAttachment depth;
+		VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_4_BIT;
+	} multisample;
 
 	// Camera and view properties
 	float eyeSeparation		= 0.08f;
@@ -240,6 +252,7 @@ class VulkanExample : public VulkanExampleBase
 	void draw();
 
 	void setup_multiview();
+	void setup_multisample_target();
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
