@@ -24,6 +24,7 @@
 #endif
 #include "tiny_gltf.h"
 
+#include "vk_utils.h"
 #include "vulkanexamplebase.h"
 
 #define ENABLE_VALIDATION false
@@ -246,6 +247,10 @@ class VulkanExample : public VulkanExampleBase
 
 	void setup_multiview();
 	void setup_multisample_target();
+
+	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
+	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);
+
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
