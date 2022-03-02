@@ -455,7 +455,7 @@ void VulkanExample::setup_multiview()
 			.extent		   = {width, height, 1},
 			.mipLevels	   = 1,
 			.arrayLayers   = multiview_layers,
-			.samples	   = VK_SAMPLE_COUNT_1_BIT,
+			.samples	   = multisample.sample_count,
 			.tiling		   = VK_IMAGE_TILING_OPTIMAL,
 			.usage		   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
@@ -529,7 +529,7 @@ void VulkanExample::setup_multiview()
 			.extent		 = {width, height, 1},
 			.mipLevels	 = 1,
 			.arrayLayers = multiview_layers,
-			.samples	 = VK_SAMPLE_COUNT_1_BIT,
+			.samples	 = multisample.sample_count,
 			.tiling		 = VK_IMAGE_TILING_OPTIMAL,
 			.usage		 = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		};
@@ -569,14 +569,27 @@ void VulkanExample::setup_multiview()
 
 	// Multiview Renderpass
 	{
-		VkAttachmentDescription attachments[2];
+		VkAttachmentDescription attachments[3];
 
-		// Colour attachment
+		// MSAA attachment
 		attachments[0] = {
+			.flags = 0,
+			.format = swapChain.colorFormat,
+			.samples = multisample.sample_count,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		};
+
+		// Colour attachment, MSAA target resolved here
+		attachments[1] = {
 			.flags			= 0,
 			.format			= swapChain.colorFormat,
 			.samples		= VK_SAMPLE_COUNT_1_BIT,
-			.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.loadOp			= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
 			.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
 			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -584,11 +597,11 @@ void VulkanExample::setup_multiview()
 			.finalLayout	= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 
-		// Depth attachment
-		attachments[1] = {
+		// Depth attachment, use the same sample count as for MSAA
+		attachments[2] = {
 			.flags			= 0,
 			.format			= depthFormat,
-			.samples		= VK_SAMPLE_COUNT_1_BIT,
+			.samples		= multisample.sample_count,
 			.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
 			.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -598,13 +611,18 @@ void VulkanExample::setup_multiview()
 		};
 
 		// Attachment references
-		VkAttachmentReference colour_reference = {
+		VkAttachmentReference msaa_reference = {
 			.attachment = 0,
-			.layout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		};
+
+		VkAttachmentReference colour_reference = {
+			.attachment = 1,
+			.layout		= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 
 		VkAttachmentReference depth_reference = {
-			.attachment = 1,
+			.attachment = 2,
 			.layout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		};
 
@@ -614,6 +632,7 @@ void VulkanExample::setup_multiview()
 			.pipelineBindPoint		 = VK_PIPELINE_BIND_POINT_GRAPHICS,
 			.colorAttachmentCount	 = 1,
 			.pColorAttachments		 = &colour_reference,
+			.pResolveAttachments = &msaa_reference,
 			.pDepthStencilAttachment = &depth_reference,
 		};
 
@@ -657,7 +676,7 @@ void VulkanExample::setup_multiview()
 			.sType			 = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 			.pNext			 = &renderpass_multiview_ci,
 			.flags			 = 0,
-			.attachmentCount = 2,
+			.attachmentCount = 3,
 			.pAttachments	 = attachments,
 			.subpassCount	 = 1,
 			.pSubpasses		 = &subpass_description,
@@ -670,14 +689,17 @@ void VulkanExample::setup_multiview()
 
 	// Framebuffer creation
 	{
-		VkImageView fbo_attachments[] = {multiview_pass.colour.view, multiview_pass.depth.view};
+
+
+
+		VkImageView fbo_attachments[] = {multisample.colour.view, multiview_pass.colour.view, multiview_pass.depth.view};
 
 		VkFramebufferCreateInfo fbo_ci = {
 			.sType			 = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
 			.pNext			 = nullptr,
 			.flags			 = 0,
 			.renderPass		 = multiview_pass.renderpass,
-			.attachmentCount = 2,
+			.attachmentCount = 3,
 			.pAttachments	 = fbo_attachments,
 			.width			 = SERVERWIDTH,
 			.height			 = SERVERHEIGHT,
@@ -698,7 +720,7 @@ void VulkanExample::setup_multisample_target()
 		.format		   = swapChain.colorFormat,
 		.extent		   = {width, height, 1},
 		.mipLevels	   = 1,
-		.arrayLayers   = 1,
+		.arrayLayers   = 2,
 		.samples	   = multisample.sample_count,
 		.tiling		   = VK_IMAGE_TILING_OPTIMAL,
 		.usage		   = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
@@ -739,57 +761,7 @@ void VulkanExample::setup_multisample_target()
 	vkBindImageMemory(device, multisample.colour.image, multisample.colour.memory, 0);
 	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multisample.colour.view));
 
-	// Depth target setup
-	VkImageCreateInfo depth_image_ci = {
-		.sType		   = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.pNext		   = 0,
-		.flags		   = 0,
-		.imageType	   = VK_IMAGE_TYPE_2D,
-		.format		   = depthFormat,
-		.extent		   = {width, height, 1},
-		.mipLevels	   = 1,
-		.arrayLayers   = 1,
-		.samples	   = multisample.sample_count,
-		.tiling		   = VK_IMAGE_TILING_OPTIMAL,
-		.usage		   = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		.sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-
-	VK_CHECK_RESULT(vkCreateImage(device, &depth_image_ci, nullptr, &multisample.depth.image));
-
-	// Depth image memory
-	VkMemoryRequirements depth_memory_requirements;
-	vkGetImageMemoryRequirements(device, multisample.depth.image, &depth_memory_requirements);
-	VkMemoryAllocateInfo depth_memory_ai = {
-		.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.pNext			 = nullptr,
-		.allocationSize	 = depth_memory_requirements.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(depth_memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-	};
-
-
-	VkImageSubresourceRange depth_subresource_range = {
-		.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-		.levelCount = 1,
-		.layerCount = 1,
-	};
-
-	// Image view for depth of msaa target
-	VkImageViewCreateInfo depth_imageview_ci = {
-		.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.pNext			  = nullptr,
-		.flags			  = 0,
-		.image			  = multisample.depth.image,
-		.viewType		  = VK_IMAGE_VIEW_TYPE_2D,
-		.format			  = depthFormat,
-		.components		  = {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R},
-		.subresourceRange = depth_subresource_range,
-	};
-
-	VK_CHECK_RESULT(vkAllocateMemory(device, &depth_memory_ai, nullptr, &multisample.depth.memory));
-	vkBindImageMemory(device, multisample.depth.image, multisample.depth.memory, 0);
-	VK_CHECK_RESULT(vkCreateImageView(device, &depth_imageview_ci, nullptr, &multisample.depth.view));
+	printf("setup multisample target executed without errors\n");
 }
 
 
@@ -800,9 +772,10 @@ void VulkanExample::buildCommandBuffers()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
-		VkClearValue clearValues[2];
+		VkClearValue clearValues[3];
 		clearValues[0].color		= defaultClearColor;
-		clearValues[1].depthStencil = {1.0f, 0};
+		clearValues[1].color = defaultClearColor;
+		clearValues[2].depthStencil = {1.0f, 0};
 
 		VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass				 = renderPass;
@@ -810,7 +783,7 @@ void VulkanExample::buildCommandBuffers()
 		renderPassBeginInfo.renderArea.offset.y		 = 0;
 		renderPassBeginInfo.renderArea.extent.width	 = width;
 		renderPassBeginInfo.renderArea.extent.height = height;
-		renderPassBeginInfo.clearValueCount			 = 2;
+		renderPassBeginInfo.clearValueCount			 = 3;
 		renderPassBeginInfo.pClearValues			 = clearValues;
 
 		for(int32_t i = 0; i < drawCmdBuffers.size(); ++i)
@@ -1184,7 +1157,7 @@ void VulkanExample::preparePipelines()
 	VkPipelineColorBlendStateCreateInfo colorBlendStateCI		= vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentStateCI);
 	VkPipelineDepthStencilStateCreateInfo depthStencilStateCI	= vks::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
 	VkPipelineViewportStateCreateInfo viewportStateCI			= vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
-	VkPipelineMultisampleStateCreateInfo multisampleStateCI		= vks::initializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
+	VkPipelineMultisampleStateCreateInfo multisampleStateCI		= vks::initializers::pipelineMultisampleStateCreateInfo(multisample.sample_count, 0);
 	const std::vector<VkDynamicState> dynamicStateEnables		= {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 	VkPipelineDynamicStateCreateInfo dynamicStateCI				= vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables.data(), static_cast<uint32_t>(dynamicStateEnables.size()), 0);
 
@@ -1367,8 +1340,8 @@ void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
 	loadAssets();
-	setup_multiview();
 	setup_multisample_target();
+	setup_multiview();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
