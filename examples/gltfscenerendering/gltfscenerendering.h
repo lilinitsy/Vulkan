@@ -220,13 +220,6 @@ class VulkanExample : public VulkanExampleBase
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
 
-	// Multisample parts
-	struct
-	{
-		FrameBufferAttachment colour;
-		FrameBufferAttachment depth;
-		VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_4_BIT;
-	} multisample;
 
 	// Camera and view properties
 	float eyeSeparation		= 0.08f;

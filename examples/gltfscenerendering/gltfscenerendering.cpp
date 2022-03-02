@@ -688,112 +688,6 @@ void VulkanExample::setup_multiview()
 }
 
 
-void VulkanExample::setup_multisample_target()
-{
-	// Multisample colour target
-	VkImageCreateInfo image_ci = {
-		.pNext		   = nullptr,
-		.flags		   = 0,
-		.imageType	   = VK_IMAGE_TYPE_2D,
-		.format		   = swapChain.colorFormat,
-		.extent		   = {width, height, 1},
-		.mipLevels	   = 1,
-		.arrayLayers   = 1,
-		.samples	   = multisample.sample_count,
-		.tiling		   = VK_IMAGE_TILING_OPTIMAL,
-		.usage		   = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-		.sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-
-	VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multisample.colour.image))
-
-	VkMemoryRequirements memory_requirements;
-	vkGetImageMemoryRequirements(device, multisample.colour.image, &memory_requirements);
-
-	VkMemoryAllocateInfo memory_ai = {
-		.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.pNext			 = nullptr,
-		.allocationSize	 = memory_requirements.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-	};
-
-	VkImageSubresourceRange subresource_range = {
-		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-		.levelCount = 1,
-		.layerCount = 1,
-	};
-
-	VkImageViewCreateInfo image_view_ci = {
-		.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.pNext			  = nullptr,
-		.flags			  = 0,
-		.image			  = multisample.colour.image,
-		.viewType		  = VK_IMAGE_VIEW_TYPE_2D,
-		.format			  = swapChain.colorFormat,
-		.components		  = {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R},
-		.subresourceRange = subresource_range,
-	};
-
-	VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &multisample.colour.memory));
-	vkBindImageMemory(device, multisample.colour.image, multisample.colour.memory, 0);
-	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multisample.colour.view));
-
-	// Depth target setup
-	VkImageCreateInfo depth_image_ci = {
-		.sType		   = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.pNext		   = 0,
-		.flags		   = 0,
-		.imageType	   = VK_IMAGE_TYPE_2D,
-		.format		   = depthFormat,
-		.extent		   = {width, height, 1},
-		.mipLevels	   = 1,
-		.arrayLayers   = 1,
-		.samples	   = multisample.sample_count,
-		.tiling		   = VK_IMAGE_TILING_OPTIMAL,
-		.usage		   = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		.sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-
-	VK_CHECK_RESULT(vkCreateImage(device, &depth_image_ci, nullptr, &multisample.depth.image));
-
-	// Depth image memory
-	VkMemoryRequirements depth_memory_requirements;
-	vkGetImageMemoryRequirements(device, multisample.depth.image, &depth_memory_requirements);
-	VkMemoryAllocateInfo depth_memory_ai = {
-		.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.pNext			 = nullptr,
-		.allocationSize	 = depth_memory_requirements.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(depth_memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-	};
-
-
-	VkImageSubresourceRange depth_subresource_range = {
-		.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-		.levelCount = 1,
-		.layerCount = 1,
-	};
-
-	// Image view for depth of msaa target
-	VkImageViewCreateInfo depth_imageview_ci = {
-		.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.pNext			  = nullptr,
-		.flags			  = 0,
-		.image			  = multisample.depth.image,
-		.viewType		  = VK_IMAGE_VIEW_TYPE_2D,
-		.format			  = depthFormat,
-		.components		  = {VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_R},
-		.subresourceRange = depth_subresource_range,
-	};
-
-	VK_CHECK_RESULT(vkAllocateMemory(device, &depth_memory_ai, nullptr, &multisample.depth.memory));
-	vkBindImageMemory(device, multisample.depth.image, multisample.depth.memory, 0);
-	VK_CHECK_RESULT(vkCreateImageView(device, &depth_imageview_ci, nullptr, &multisample.depth.view));
-}
-
-
-
 void VulkanExample::buildCommandBuffers()
 {
 	// View display rendering
@@ -1368,7 +1262,6 @@ void VulkanExample::prepare()
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_multiview();
-	setup_multisample_target();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
