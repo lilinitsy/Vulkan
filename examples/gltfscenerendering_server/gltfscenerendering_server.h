@@ -28,7 +28,7 @@
 #include "vk_utils.h"
 #include "vulkanexamplebase.h"
 
-#define ENABLE_VALIDATION false
+#define ENABLE_VALIDATION true
 
 // Offloaded rendering attributes
 const uint32_t SERVERWIDTH	= 1920; // 512
