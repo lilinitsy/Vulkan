@@ -39,7 +39,7 @@ void main()
 	vec3 V = normalize(inViewVec);
 	vec3 R = reflect(-L, N);
 	vec3 diffuse = max(dot(N, L), ambient).rrr;
-	float specular = 0.5f * clamp(pow(max(dot(R, V), 0.0), 16.0), 0.0, 0.25);
+	float specular = 0.5 * clamp(pow(max(dot(R, V), 0.0), 16.0), 0.0, 0.25);
 	outColor = vec4(diffuse * color.rgb + specular, color.a);
 	//outColor = color;
 

@@ -14,7 +14,7 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
-#include "gltfscenerendering_server.h"
+#include "gltfscenerendering_client.h"
 
 /*
         Vulkan glTF scene class
@@ -697,7 +697,7 @@ void VulkanExample::buildCommandBuffers()
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 		VkClearValue clearValues[2];
-		clearValues[0].color		= {0.0f, 0.0f, 0.0f, 1.0f}; //defaultClearColor;
+		clearValues[0].color		= defaultClearColor;
 		clearValues[1].depthStencil = {1.0f, 0};
 
 		VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
@@ -754,7 +754,8 @@ void VulkanExample::buildCommandBuffers()
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 		VkClearValue clearValues[2];
-		clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f}; //defaultClearColor;
+		clearValues[0].color = defaultClearColor;
+		clearValues[0].color = {{0.25f, 0.25f, 0.25f, 1.0f}};
 
 		clearValues[1].depthStencil = {1.0f, 0};
 
@@ -1277,8 +1278,6 @@ void VulkanExample::prepare()
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	lefteye_fovea = create_image_packet();
-	righteye_fovea = create_image_packet();
 	buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -1318,76 +1317,7 @@ void VulkanExample::draw()
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
 	VulkanExampleBase::submitFrame();
-
-	// Now copy the image packet back
-	//ImagePacket image_packet = copy_image_to_packet(swapChain.images[currentBuffer]);
 }
-
-
-ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet)
-{
-	ImagePacket dst = image_packet;
-	VkCommandBuffer copy_cmdbuffer = vku::begin_command_buffer(device, cmdPool);
-
-
-	// Transition swapchain image from present to source transfer layout
-	//vku::transition_image_layout(device, cmdPool, copy_cmdbuffer)
-
-	//return dst;
-}
-
-ImagePacket VulkanExample::create_image_packet()
-{
-	ImagePacket dst;
-	VkExtent3D extent = {SERVERWIDTH, SERVERHEIGHT, 1};
-
-	// Create the imagepacket image
-	VkImageCreateInfo imagepacket_image_ci = {
-		.sType		   = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.pNext		   = nullptr,
-		.flags		   = 0,
-		.imageType	   = VK_IMAGE_TYPE_2D,
-		.format		   = VK_FORMAT_R8G8B8A8_SNORM,
-		.extent		   = extent,
-		.mipLevels	   = 1,
-		.arrayLayers   = 1,
-		.samples	   = VK_SAMPLE_COUNT_1_BIT,
-		.tiling		   = VK_IMAGE_TILING_LINEAR,
-		.usage		   = VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-
-	VK_CHECK_RESULT(vkCreateImage(device, &imagepacket_image_ci, nullptr, &dst.image));
-
-	// Memory for image
-	VkMemoryRequirements imagepacket_memory_reqs;
-	vkGetImageMemoryRequirements(device, dst.image, &imagepacket_memory_reqs);
-
-	VkMemoryAllocateInfo imagepacket_mem_ai = {
-		.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize	 = imagepacket_memory_reqs.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(imagepacket_memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-	};
-	VK_CHECK_RESULT(vkAllocateMemory(device, &imagepacket_mem_ai, nullptr, &dst.memory));
-	VK_CHECK_RESULT(vkBindImageMemory(device, dst.image, dst.memory, 0));
-
-	// Transition the destination image to be a transfer dst
-	VkCommandBuffer transition_cmdbuf = vku::begin_command_buffer(device, cmdPool);
-	vku::transition_image_layout(device, cmdPool, transition_cmdbuf,
-								 dst.image,
-								 0,									   // src access mask
-								 VK_ACCESS_TRANSFER_WRITE_BIT,		   // dst access mask
-								 VK_IMAGE_LAYOUT_UNDEFINED,			   // old layout
-								 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // transitioned layout
-								 VK_PIPELINE_STAGE_TRANSFER_BIT,	   // src stage mask
-								 VK_PIPELINE_STAGE_TRANSFER_BIT);	   // dst stage mask
-	
-	vku::end_command_buffer(device, queue, cmdPool, transition_cmdbuf);
-
-	return dst;
-}
-
 
 void VulkanExample::render()
 {

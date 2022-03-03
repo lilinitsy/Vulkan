@@ -84,7 +84,8 @@ set(EXAMPLES
 	gears
 	geometryshader
 	gltfloading
-	gltfscenerendering
+	gltfscenerendering_server
+	gltfscenerendering_client
 	gltfskinning
 	hdr
 	imgui

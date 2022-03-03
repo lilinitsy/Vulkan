@@ -253,7 +253,7 @@ class VulkanExample : public VulkanExampleBase
 	void setup_multiview();
 	void setup_multisample_target();
 	ImagePacket create_image_packet();
-	ImagePacket copy_image_to_packet(VkImage src_image);
+	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet);
 
 
 	virtual void render();
