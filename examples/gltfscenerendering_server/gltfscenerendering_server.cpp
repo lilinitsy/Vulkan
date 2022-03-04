@@ -384,7 +384,7 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer,
 */
 
 VulkanExample::VulkanExample() :
-	VulkanExampleBase(ENABLE_VALIDATION, SERVERWIDTH, SERVERHEIGHT)
+	VulkanExampleBase(false, SERVERWIDTH, SERVERHEIGHT)
 {
 	title		 = "glTF scene rendering";
 	camera.type	 = Camera::CameraType::firstperson;
@@ -392,6 +392,8 @@ VulkanExample::VulkanExample() :
 	camera.setPosition(glm::vec3(2.2f, -2.0f, 0.25f));
 	camera.setRotation(glm::vec3(-180.0f, -90.0f, 0.0f));
 	camera.movementSpeed = 4.0f;
+
+	printf("Scene width, height: %d\t%d\n", width, height);
 
 	// Multiview setup
 	// Enable extension required for multiview
@@ -1309,40 +1311,50 @@ void VulkanExample::draw()
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
 	VkSwapchainKHR swapchains_to_present_to[] = {swapChain.swapChain};
-	VkPresentInfoKHR present_info = {
-		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-		.pNext = nullptr,
+	VkPresentInfoKHR present_info			  = {
+		.sType				= VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.pNext				= nullptr,
 		.waitSemaphoreCount = 1,
-		.pWaitSemaphores = &semaphores.renderComplete,
-		.swapchainCount = 1,
-		.pSwapchains = swapchains_to_present_to,
-		.pImageIndices = &currentBuffer,
+		.pWaitSemaphores	= &semaphores.renderComplete,
+		.swapchainCount		= 1,
+		.pSwapchains		= swapchains_to_present_to,
+		.pImageIndices		= &currentBuffer,
 	};
 
-	vkQueuePresentKHR(queue, &present_info);
+	//vkQueuePresentKHR(queue, &present_info);
 
-	//VulkanExampleBase::submitFrame();
+	VulkanExampleBase::submitFrame();
 
 	// Now copy the image packet back
-	//lefteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea);
+	lefteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea);
 	//printf("\nLEFTEYE_FOVEA RETURNED\n");
 }
 
 
 ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet)
 {
-	ImagePacket dst = image_packet;
+	ImagePacket dst				   = image_packet;
 	VkCommandBuffer copy_cmdbuffer = vku::begin_command_buffer(device, cmdPool);
 
 	//printf("Command buffer begun\n");
+
+	// Transition dst image from general to transfer dst optimal
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
+								 dst.image,
+								 0,
+								 VK_ACCESS_TRANSFER_WRITE_BIT,
+								 VK_IMAGE_LAYOUT_GENERAL,
+								 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+								 VK_PIPELINE_STAGE_TRANSFER_BIT,
+								 VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 	// Transition swapchain image from present to source transfer layout
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
 								 src_image,
 								 VK_ACCESS_MEMORY_READ_BIT,
 								 VK_ACCESS_TRANSFER_READ_BIT,
-								 VK_IMAGE_LAYOUT_UNDEFINED,
 								 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+								 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 								 VK_PIPELINE_STAGE_TRANSFER_BIT,
 								 VK_PIPELINE_STAGE_TRANSFER_BIT);
 
@@ -1358,13 +1370,13 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 	image_copy_region.extent.height				= SERVERHEIGHT;
 	image_copy_region.extent.depth				= 1;
 
-	/*vkCmdCopyImage(copy_cmdbuffer,
+	vkCmdCopyImage(copy_cmdbuffer,
 				   src_image,
 				   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 				   dst.image,
 				   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				   1,
-				   &image_copy_region);*/
+				   &image_copy_region);
 	//printf("vkImageCopy performed\n");
 	// Transition dst image to general layout -- lets us map the image memory
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
@@ -1388,7 +1400,6 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 								 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 								 VK_PIPELINE_STAGE_TRANSFER_BIT,
 								 VK_PIPELINE_STAGE_TRANSFER_BIT);
-
 	//printf("Swapchain transitioned back\n");
 	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuffer);
 	//printf("copy_cmdbuf ended\n");
@@ -1430,21 +1441,21 @@ ImagePacket VulkanExample::create_image_packet()
 	VkMemoryAllocateInfo imagepacket_mem_ai = {
 		.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize	 = imagepacket_memory_reqs.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(imagepacket_memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+		.memoryTypeIndex = vulkanDevice->getMemoryType(imagepacket_memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
 	};
 	VK_CHECK_RESULT(vkAllocateMemory(device, &imagepacket_mem_ai, nullptr, &dst.memory));
 	VK_CHECK_RESULT(vkBindImageMemory(device, dst.image, dst.memory, 0));
 
-	// Transition the destination image to be a transfer dst
+	// Transition the destination image to a default layout of general
 	VkCommandBuffer transition_cmdbuf = vku::begin_command_buffer(device, cmdPool);
 	vku::transition_image_layout(device, cmdPool, transition_cmdbuf,
 								 dst.image,
-								 0,									   // src access mask
-								 VK_ACCESS_TRANSFER_WRITE_BIT,		   // dst access mask
-								 VK_IMAGE_LAYOUT_UNDEFINED,			   // old layout
-								 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // transitioned layout
-								 VK_PIPELINE_STAGE_TRANSFER_BIT,	   // src stage mask
-								 VK_PIPELINE_STAGE_TRANSFER_BIT);	   // dst stage mask
+								 0,								  // src access mask
+								 VK_ACCESS_TRANSFER_WRITE_BIT,	  // dst access mask
+								 VK_IMAGE_LAYOUT_UNDEFINED,		  // old layout
+								 VK_IMAGE_LAYOUT_GENERAL,		  // transitioned layout
+								 VK_PIPELINE_STAGE_TRANSFER_BIT,  // src stage mask
+								 VK_PIPELINE_STAGE_TRANSFER_BIT); // dst stage mask
 
 	vku::end_command_buffer(device, queue, cmdPool, transition_cmdbuf);
 
