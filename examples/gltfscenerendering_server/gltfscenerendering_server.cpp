@@ -702,6 +702,7 @@ void VulkanExample::buildCommandBuffers()
 		clearValues[0].color		= {0.0f, 0.0f, 0.0f, 1.0f}; //defaultClearColor;
 		clearValues[1].depthStencil = {1.0f, 0};
 
+
 		VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass				 = renderPass;
 		renderPassBeginInfo.renderArea.offset.x		 = 0;
@@ -1325,13 +1326,48 @@ void VulkanExample::draw()
 
 	VulkanExampleBase::submitFrame();
 
+	// Determine area to copy
+	int32_t midpoint_of_eye_x = SERVERWIDTH / 4;
+	int32_t midpoint_of_eye_y = SERVERHEIGHT / 2;
+
+	// Get the top left point of the x
+	int32_t topleft_lefteye_x = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_lefteye_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	VkOffset3D lefteye_copy_offset = {
+		.x = topleft_lefteye_x,
+		.y = topleft_lefteye_y,
+		.z = 0,
+	};
 	// Now copy the image packet back
-	lefteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea);
+	lefteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
+
+	// write left fovea to file
+	std::string filename = "tmpserver" + std::to_string(currentBuffer) + ".ppm";
+	std::ofstream file(filename, std::ios::out | std::ios::binary);
+	file << "P6\n"
+		 << FOVEAWIDTH << "\n"
+		 << FOVEAHEIGHT << "\n"
+		 << 255 << "\n";
+
+	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
+	{
+		uint32_t *row = (uint32_t *) lefteye_fovea.data;
+		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
+		{
+			file.write((char *) row, 3);
+			row++;
+		}
+		lefteye_fovea.data += lefteye_fovea.subresource_layout.rowPitch;
+	}
+
+	file.close();
+
 	//printf("\nLEFTEYE_FOVEA RETURNED\n");
 }
 
 
-ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet)
+ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset)
 {
 	ImagePacket dst				   = image_packet;
 	VkCommandBuffer copy_cmdbuffer = vku::begin_command_buffer(device, cmdPool);
@@ -1360,14 +1396,16 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 
 	//printf("Swapchain transitioned to read only VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL\n");
 
+
 	// Copy image
 	VkImageCopy image_copy_region{};
 	image_copy_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	image_copy_region.srcSubresource.layerCount = 1;
 	image_copy_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	image_copy_region.dstSubresource.layerCount = 1;
-	image_copy_region.extent.width				= SERVERWIDTH;
-	image_copy_region.extent.height				= SERVERHEIGHT;
+	image_copy_region.srcOffset					= offset;
+	image_copy_region.extent.width				= FOVEAWIDTH;
+	image_copy_region.extent.height				= FOVEAHEIGHT;
 	image_copy_region.extent.depth				= 1;
 
 	vkCmdCopyImage(copy_cmdbuffer,
@@ -1413,7 +1451,7 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 ImagePacket VulkanExample::create_image_packet()
 {
 	ImagePacket dst;
-	VkExtent3D extent = {SERVERWIDTH, SERVERHEIGHT, 1};
+	VkExtent3D extent = {FOVEAWIDTH, FOVEAHEIGHT, 1};
 
 	// Create the imagepacket image
 	VkImageCreateInfo imagepacket_image_ci = {

@@ -32,9 +32,13 @@
 
 // Offloaded rendering attributes
 const uint32_t SERVERWIDTH	= 1600; // 512
-const uint32_t SERVERHEIGHT = 900; // 512
+const uint32_t SERVERHEIGHT = 900;	// 512
 const uint32_t CLIENTWIDTH	= 1920;
 const uint32_t CLIENTHEIGHT = 1080;
+
+// Possibly temp offloaded rendering attributes
+const uint32_t FOVEAWIDTH  = 320;
+const uint32_t FOVEAHEIGHT = 240;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
@@ -253,7 +257,7 @@ class VulkanExample : public VulkanExampleBase
 	void setup_multiview();
 	void setup_multisample_target();
 	ImagePacket create_image_packet();
-	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet);
+	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset);
 
 
 	virtual void render();
