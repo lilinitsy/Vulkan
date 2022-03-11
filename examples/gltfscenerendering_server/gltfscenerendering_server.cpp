@@ -1272,6 +1272,8 @@ void VulkanExample::prepare()
 	preparePipelines();
 	lefteye_fovea  = create_image_packet();
 	righteye_fovea = create_image_packet();
+	server		   = Server();
+	//server.connect_to_client(PORT);
 	buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -1330,40 +1332,81 @@ void VulkanExample::draw()
 	int32_t midpoint_of_eye_x = SERVERWIDTH / 4;
 	int32_t midpoint_of_eye_y = SERVERHEIGHT / 2;
 
-	// Get the top left point of the x
-	int32_t topleft_lefteye_x = midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int32_t topleft_lefteye_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+	// Get the top left point for left eye
+	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	// Get the top left point for right eye -- y is same
+	int32_t topleft_righteye_x = (SERVERWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
 
 	VkOffset3D lefteye_copy_offset = {
 		.x = topleft_lefteye_x,
-		.y = topleft_lefteye_y,
+		.y = topleft_eyepoint_y,
 		.z = 0,
 	};
-	// Now copy the image packet back
-	lefteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
+
+	VkOffset3D righteye_copy_offset = {
+		.x = topleft_righteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+	// Now copy the image packet back; Could probably copy in parallel...
+	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
+	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
+
+	send_image_to_client(lefteye_fovea);
+
 
 	// write left fovea to file
-	std::string filename = "tmpserver" + std::to_string(currentBuffer) + ".ppm";
+	write_imagepacket_to_file(lefteye_fovea, currentBuffer, "left");
+	//printf("\nLEFTEYE_FOVEA RETURNED\n");
+}
+
+/*
+	Function that sends the image to the client.
+	It will also take out the alpha value of the swapchain's image that was
+	mapped to some char* or void* as uint8_t's.
+
+	The receiving buffer on the client needs to be able to receive
+	the same number of packets.
+*/
+void VulkanExample::send_image_to_client(ImagePacket image_packet)
+{
+	size_t output_framesize_bytes = FOVEAHEIGHT * FOVEAHEIGHT * 3;
+	size_t input_framesize_bytes  = FOVEAHEIGHT * FOVEAHEIGHT * sizeof(uint32_t);
+
+	//uint8_t sendpacket[output_framesize_bytes];
+	uint8_t *sendpacket = new uint8_t[output_framesize_bytes];
+	vku::rgba_to_rgb((uint8_t *) image_packet.data, sendpacket, input_framesize_bytes);
+	//send(server.client_fd, sendpacket, output_framesize_bytes, 0);
+
+	std::string filename = "tmpserver_removed_" + std::to_string(currentBuffer) + ".ppm";
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
 	file << "P6\n"
 		 << FOVEAWIDTH << "\n"
 		 << FOVEAHEIGHT << "\n"
 		 << 255 << "\n";
 
+	for(uint32_t i = 0; i < output_framesize_bytes; i++)
+	{
+		file.write((char*) sendpacket, 1);
+		sendpacket++;
+	}
+	/*
 	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
 	{
-		uint32_t *row = (uint32_t *) lefteye_fovea.data;
+		uint32_t *row = (uint32_t *) image_packet.data;
 		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
 		{
 			file.write((char *) row, 3);
 			row++;
 		}
-		lefteye_fovea.data += lefteye_fovea.subresource_layout.rowPitch;
-	}
+		image_packet.data += packet.subresource_layout.rowPitch;
+	}*/
 
 	file.close();
 
-	//printf("\nLEFTEYE_FOVEA RETURNED\n");
 }
 
 
@@ -1498,6 +1541,29 @@ ImagePacket VulkanExample::create_image_packet()
 	vku::end_command_buffer(device, queue, cmdPool, transition_cmdbuf);
 
 	return dst;
+}
+
+void VulkanExample::write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name)
+{
+	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
+	std::ofstream file(filename, std::ios::out | std::ios::binary);
+	file << "P6\n"
+		 << FOVEAWIDTH << "\n"
+		 << FOVEAHEIGHT << "\n"
+		 << 255 << "\n";
+
+	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
+	{
+		uint32_t *row = (uint32_t *) packet.data;
+		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
+		{
+			file.write((char *) row, 3);
+			row++;
+		}
+		packet.data += packet.subresource_layout.rowPitch;
+	}
+
+	file.close();
 }
 
 

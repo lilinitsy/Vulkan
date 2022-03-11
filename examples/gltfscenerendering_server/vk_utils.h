@@ -118,6 +118,27 @@ namespace vku
 		vkCmdPipelineBarrier(command_buffer, src_stage_mask, dst_stage_mask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	}
 
+	void rgba_to_rgb(const uint8_t *__restrict__ in, uint8_t *__restrict__ out, size_t len)
+	{
+		for(size_t i = 0, j = 0; i < len; i += 4, j += 3)
+		{
+			out[j + 0] = in[i + 0];
+			out[j + 1] = in[i + 1];
+			out[j + 2] = in[i + 2];
+		}
+	}
+
+
+	void rgb_to_rgba(const uint8_t *__restrict__ in, uint8_t *__restrict__ out, size_t len)
+	{
+		for(size_t i = 0, j = 0; i < len; i += 4, j += 3)
+		{
+			out[i + 0] = in[j + 0];
+			out[i + 1] = in[j + 1];
+			out[i + 2] = in[j + 2];
+			out[i + 3] = 255;
+		}
+	}
 } // namespace vku
 
 #endif

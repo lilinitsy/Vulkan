@@ -25,10 +25,13 @@
 #include "tiny_gltf.h"
 
 #include "imagepacket.h"
+#include "server.h"
 #include "vk_utils.h"
 #include "vulkanexamplebase.h"
 
 #define ENABLE_VALIDATION true
+
+#define PORT 1234
 
 // Offloaded rendering attributes
 const uint32_t SERVERWIDTH	= 1600; // 512
@@ -159,6 +162,7 @@ class VulkanglTFScene
 	void draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout);
 };
 
+
 class VulkanExample : public VulkanExampleBase
 {
   public:
@@ -228,6 +232,8 @@ class VulkanExample : public VulkanExampleBase
 	ImagePacket lefteye_fovea;
 	ImagePacket righteye_fovea;
 
+	Server server;
+
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
 
 
@@ -255,9 +261,10 @@ class VulkanExample : public VulkanExampleBase
 	void draw();
 
 	void setup_multiview();
-	void setup_multisample_target();
 	ImagePacket create_image_packet();
 	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset);
+	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
+	void send_image_to_client(ImagePacket image_packet);
 
 
 	virtual void render();
