@@ -1356,11 +1356,6 @@ void VulkanExample::draw()
 	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
 
 	send_image_to_client(lefteye_fovea);
-
-
-	// write left fovea to file
-	write_imagepacket_to_file(lefteye_fovea, currentBuffer, "left");
-	//printf("\nLEFTEYE_FOVEA RETURNED\n");
 }
 
 /*
@@ -1380,33 +1375,6 @@ void VulkanExample::send_image_to_client(ImagePacket image_packet)
 	uint8_t *sendpacket = new uint8_t[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) image_packet.data, sendpacket, input_framesize_bytes);
 	//send(server.client_fd, sendpacket, output_framesize_bytes, 0);
-
-	std::string filename = "tmpserver_removed_" + std::to_string(currentBuffer) + ".ppm";
-	std::ofstream file(filename, std::ios::out | std::ios::binary);
-	file << "P6\n"
-		 << FOVEAWIDTH << "\n"
-		 << FOVEAHEIGHT << "\n"
-		 << 255 << "\n";
-
-	for(uint32_t i = 0; i < output_framesize_bytes; i++)
-	{
-		file.write((char*) sendpacket, 1);
-		sendpacket++;
-	}
-	/*
-	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
-	{
-		uint32_t *row = (uint32_t *) image_packet.data;
-		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
-		{
-			file.write((char *) row, 3);
-			row++;
-		}
-		image_packet.data += packet.subresource_layout.rowPitch;
-	}*/
-
-	file.close();
-
 }
 
 
