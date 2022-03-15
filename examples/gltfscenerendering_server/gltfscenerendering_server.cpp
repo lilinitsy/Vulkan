@@ -741,7 +741,7 @@ void VulkanExample::buildCommandBuffers()
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
-			//drawUI(drawCmdBuffers[i]);
+			drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1273,7 +1273,7 @@ void VulkanExample::prepare()
 	lefteye_fovea  = create_image_packet();
 	righteye_fovea = create_image_packet();
 	server		   = Server();
-	//server.connect_to_client(PORT);
+	server.connect_to_client(PORT);
 	buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -1292,6 +1292,7 @@ void VulkanExample::draw()
 	VulkanExampleBase::prepareFrame();
 	//printf("Current buffer: %d\n", currentBuffer);
 
+	buildCommandBuffers();
 
 	// Multiview offscreen render
 
@@ -1374,7 +1375,7 @@ void VulkanExample::send_image_to_client(ImagePacket image_packet)
 	//uint8_t sendpacket[output_framesize_bytes];
 	uint8_t *sendpacket = new uint8_t[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) image_packet.data, sendpacket, input_framesize_bytes);
-	//send(server.client_fd, sendpacket, output_framesize_bytes, 0);
+	send(server.client_fd, sendpacket, output_framesize_bytes, 0);
 }
 
 

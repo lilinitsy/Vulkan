@@ -689,9 +689,34 @@ void VulkanExample::setup_multiview()
 	}
 }
 
+void *receive_swapchain_image(void *devicerenderer)
+{
+	VulkanExample *ve = (VulkanExample*) devicerenderer;
+
+	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	uint8_t servbuf[num_bytes_network_read];
+
+	printf("Num bytes calculated\n");
+	vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &ve->server_image.data);
+	printf("Mapping memory\n");	
+	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
+	if(server_read > -1)
+	{
+		printf("Started to map memory\n");
+		vku::rgb_to_rgba(servbuf, ve->server_image.data, num_bytes_for_image);
+		printf("Memory mapped\n");
+	}
+
+	vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
+	printf("Memory unmapped\n");
+
+	return nullptr;
+}
 
 void VulkanExample::buildCommandBuffers()
 {
+	// Can't use the VK_CHECK_RESULT macro in here :(
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -790,6 +815,73 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
 		}
 	}
+
+	// Join after all the normal client rendering is done
+	pthread_join(vk_pthread.receive_image, nullptr);
+
+	//write_server_image_to_file(std::to_string(currentBuffer));
+
+	// Copy server image into the current swapchain image
+
+	/*
+	// Transition swapchain image to transfer
+	vku::transition_image_layout(device, cmdPool, drawCmdBuffers[currentBuffer],
+								swapChain.images[currentBuffer],
+								VK_ACCESS_MEMORY_READ_BIT,				  // src access_mask
+								VK_ACCESS_TRANSFER_WRITE_BIT,			  // dst access_mask
+								VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 		// current layout
+								VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,	  // new layout to transfer to (destination)
+								VK_PIPELINE_STAGE_TRANSFER_BIT,			  // dst pipeline mask
+								VK_PIPELINE_STAGE_TRANSFER_BIT);		  // src pipeline mask
+
+			// Image subresource to be used in the vkbufferimagecopy
+			VkImageSubresourceLayers image_subresource = {
+				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+				.baseArrayLayer = 0,
+				.layerCount		= 1,
+			};
+
+	// Midpoint areas....
+	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
+	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
+
+	// Get the top left point for left eye
+	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	// Get the top left point for right eye -- y is same
+	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+
+	VkOffset3D left_image_offset = {
+		.x = topleft_lefteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+	VkBufferImageCopy*/
+}
+
+void VulkanExample::write_server_image_to_file(std::string name)
+{
+	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
+	std::ofstream file(filename, std::ios::out | std::ios::binary);
+	file << "P6\n"
+		 << FOVEAWIDTH << "\n"
+		 << FOVEAHEIGHT << "\n"
+		 << 255 << "\n";
+
+	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
+	{
+		uint32_t *row = (uint32_t *) server_image.data;
+		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
+		{
+			file.write((char *) row, 3);
+			row++;
+		}
+	}
+
+	file.close();
+
 }
 
 void VulkanExample::loadglTFFile(std::string filename)
@@ -1195,6 +1287,15 @@ void VulkanExample::preparePipelines()
 	}
 }
 
+void VulkanExample::create_server_image_buffer()
+{
+	VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&server_image.buffer, image_buffer_size));
+}
+
 void VulkanExample::prepareUniformBuffers()
 {
 	VK_CHECK_RESULT(vulkanDevice->createBuffer(
@@ -1278,7 +1379,9 @@ void VulkanExample::prepare()
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	buildCommandBuffers();
+	create_server_image_buffer();
+	client.connect_to_server(PORT);
+	VulkanExample::buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
 	multiview_pass.wait_fences.resize(multiview_pass.command_buffers.size());
@@ -1295,6 +1398,9 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
+	int receive_image_thread_create = pthread_create(&vk_pthread.receive_image, nullptr, receive_swapchain_image, this);
+
+	buildCommandBuffers();
 
 	// Multiview offscreen render
 
@@ -1339,7 +1445,7 @@ void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
 			std::for_each(glTFScene.nodes.begin(), glTFScene.nodes.end(),
 						  [](VulkanglTFScene::Node &node)
 						  { node.visible = true; });
-			buildCommandBuffers();
+			VulkanExample::buildCommandBuffers();
 		}
 		ImGui::SameLine();
 		if(overlay->button("None"))
@@ -1347,7 +1453,7 @@ void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
 			std::for_each(glTFScene.nodes.begin(), glTFScene.nodes.end(),
 						  [](VulkanglTFScene::Node &node)
 						  { node.visible = false; });
-			buildCommandBuffers();
+			VulkanExample::buildCommandBuffers();
 		}
 		ImGui::NewLine();
 
@@ -1357,7 +1463,7 @@ void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
 		{
 			if(overlay->checkBox(node.name.c_str(), &node.visible))
 			{
-				buildCommandBuffers();
+				VulkanExample::buildCommandBuffers();
 			}
 		}
 		ImGui::EndChild();

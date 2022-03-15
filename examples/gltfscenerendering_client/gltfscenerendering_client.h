@@ -25,15 +25,21 @@
 #include "tiny_gltf.h"
 
 #include "vk_utils.h"
+#include "client.h"
 #include "vulkanexamplebase.h"
 
-#define ENABLE_VALIDATION false
+#define ENABLE_VALIDATION true
+#define PORT 1234
 
 // Offloaded rendering attributes
 const uint32_t SERVERWIDTH	= 1920; // 512
 const uint32_t SERVERHEIGHT = 1080; // 512
 const uint32_t CLIENTWIDTH	= 1920;
 const uint32_t CLIENTHEIGHT = 1080;
+
+// Possibly temp offloaded rendering attributes
+const uint32_t FOVEAWIDTH  = 320;
+const uint32_t FOVEAHEIGHT = 240;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
@@ -218,6 +224,28 @@ class VulkanExample : public VulkanExampleBase
 		std::vector<VkCommandBuffer> command_buffers;
 		std::vector<VkFence> wait_fences;
 	} multiview_pass;
+	
+	Client client;
+
+	struct
+	{
+		vks::Buffer buffer;
+		uint8_t *data;
+	} server_image;
+
+	struct
+	{
+		pthread_t receive_image;
+	} vk_pthread;
+
+	/*
+	 * In a more robust system that uses multiple render passes,
+	 * there would perhaps be a server colour attachment that's
+	 * stored, and a sampler, and those would be used as inputs
+	 * to a last renderpass. But, since we'll just be copying
+	 * directly into the memory, those won't be needed.
+	*/
+
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
 
@@ -251,6 +279,9 @@ class VulkanExample : public VulkanExampleBase
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);
 
+	//void *receive_swapchain_image(void *devicerenderer);
+	void create_server_image_buffer();
+	void write_server_image_to_file(std::string name);
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
