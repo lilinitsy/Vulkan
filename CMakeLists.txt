@@ -6,6 +6,8 @@ set(NAME vulkanExamples)
 
 project(${NAME})
 
+# Try to get vectorization
+
 include_directories(external)
 include_directories(external/glm)
 include_directories(external/gli)
@@ -101,15 +103,20 @@ ELSE()
 ENDIF()
 
 # Set preprocessor defines
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNOMINMAX -D_USE_MATH_DEFINES")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNOMINMAX -D_USE_MATH_DEFINES -mavx2")
+
+# Force build for release
+set(CMAKE_BUILD_TYPE Release)
 
 # Clang specific stuff
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-enum")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-enum -mavx2")
 endif()
 
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+add_definitions(-mavx2)
+add_compile_options(-mavx2)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

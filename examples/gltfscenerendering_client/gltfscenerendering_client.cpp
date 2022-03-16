@@ -697,19 +697,14 @@ void *receive_swapchain_image(void *devicerenderer)
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
 
-	printf("Num bytes calculated\n");
 	vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &ve->server_image.data);
-	printf("Mapping memory\n");	
 	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
 	if(server_read > -1)
 	{
-		printf("Started to map memory\n");
 		vku::rgb_to_rgba(servbuf, ve->server_image.data, num_bytes_for_image);
-		printf("Memory mapped\n");
 	}
 
 	vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
-	printf("Memory unmapped\n");
 
 	return nullptr;
 }
