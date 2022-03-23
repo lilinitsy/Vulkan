@@ -820,103 +820,6 @@ void VulkanExample::buildCommandBuffers()
 
 	// Copy server image into the current swapchain image
 
-	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
-
-	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-	//VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
-
-
-	// Transition swapchain image to transfer
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-								multiview_pass.colour.image,
-								VK_ACCESS_MEMORY_READ_BIT,				  // src access_mask
-								VK_ACCESS_TRANSFER_WRITE_BIT,			  // dst access_mask
-								VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 					// current layout
-								VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,	  // new layout to transfer to (destination)
-								VK_PIPELINE_STAGE_TRANSFER_BIT,			  // dst pipeline mask
-								VK_PIPELINE_STAGE_TRANSFER_BIT);		  // src pipeline mask
-	
-	
-	// Image subresource to be used in the vkbufferimagecopy
-	VkImageSubresourceLayers image_subresource = {
-		.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-		.baseArrayLayer = 0,
-		.layerCount		= 1,
-	};
-
-	// Midpoint areas....
-	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
-	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
-
-	// Get the top left point for left eye
-	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
-
-	// Get the top left point for right eye -- y is same
-	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
-
-	VkOffset3D left_image_offset = {
-		.x = topleft_lefteye_x,
-		.y = topleft_eyepoint_y,
-		.z = 0,
-	};
-
-	// Create the vkbufferimagecopy pregions
-	VkBufferImageCopy copy_region = {
-		.bufferOffset = 0,
-		.bufferRowLength = FOVEAWIDTH,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource = image_subresource,
-		.imageExtent = {FOVEAWIDTH, FOVEAHEIGHT, 1},
-	};
-
-
-	// Join after all the normal client rendering is done, at the latest point possible
-	//pthread_join(vk_pthread.receive_image, nullptr);
-
-
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
-
-	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &server_image.data);
-	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, server_image.data, num_bytes_for_image);
-	}
-
-	//write_server_image_to_file(currentBuffer + "tmp.ppm");
-
-	vkUnmapMemory(device, server_image.buffer.memory);
-
-
-	//write_server_image_to_file("tmp.ppm");
-
-	// Print out what the server image is...
-
-	
-	// Perform copy
-	vkCmdCopyBufferToImage(copy_cmdbuf,
-		server_image.buffer.buffer,
-		multiview_pass.colour.image,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		1, &copy_region);
-	
-	
-	// Transition swapchain image back to present src khr
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-		multiview_pass.colour.image,
-		VK_ACCESS_TRANSFER_WRITE_BIT,
-		VK_ACCESS_MEMORY_READ_BIT,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		VK_PIPELINE_STAGE_TRANSFER_BIT,
-		VK_PIPELINE_STAGE_TRANSFER_BIT);
-	
-	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
-	
-	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 }
 
 void VulkanExample::write_server_image_to_file(std::string name)
@@ -1494,6 +1397,110 @@ void VulkanExample::draw()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
+
+
+	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
+
+	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+	//VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
+
+
+	// Transition swapchain image to transfer
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
+								swapChain.images[currentBuffer],
+								VK_ACCESS_MEMORY_READ_BIT,				  // src access_mask
+								VK_ACCESS_TRANSFER_WRITE_BIT,			  // dst access_mask
+								VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 					// current layout
+								VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,	  // new layout to transfer to (destination)
+								VK_PIPELINE_STAGE_TRANSFER_BIT,			  // dst pipeline mask
+								VK_PIPELINE_STAGE_TRANSFER_BIT);		  // src pipeline mask
+	
+	
+	// Image subresource to be used in the vkbufferimagecopy
+	VkImageSubresourceLayers image_subresource = {
+		.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseArrayLayer = 0,
+		.layerCount		= 1,
+	};
+
+	// Midpoint areas....
+	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
+	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
+
+	// Get the top left point for left eye
+	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	// Get the top left point for right eye -- y is same
+	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+
+	VkOffset3D left_image_offset = {
+		.x = topleft_lefteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+	// Create the vkbufferimagecopy pregions
+	VkBufferImageCopy copy_region = {
+		.bufferOffset = 0,
+		.bufferRowLength = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource = image_subresource,
+		.imageExtent = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
+
+
+	// Join after all the normal client rendering is done, at the latest point possible
+	//pthread_join(vk_pthread.receive_image, nullptr);
+
+
+	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	uint8_t servbuf[num_bytes_network_read];
+
+	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &server_image.data);
+	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
+	if(server_read != -1)
+	{
+		vku::rgb_to_rgba(servbuf, server_image.data, num_bytes_for_image);
+	}
+
+	//write_server_image_to_file(currentBuffer + "tmp.ppm");
+
+	vkUnmapMemory(device, server_image.buffer.memory);
+
+
+	//write_server_image_to_file("tmp.ppm");
+
+	// Print out what the server image is...
+
+	
+	// Perform copy
+	vkCmdCopyBufferToImage(copy_cmdbuf,
+		server_image.buffer.buffer,
+		swapChain.images[currentBuffer],
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1, &copy_region);
+	
+	
+	// Transition swapchain image back to present src khr
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
+		swapChain.images[currentBuffer],
+		VK_ACCESS_TRANSFER_WRITE_BIT,
+		VK_ACCESS_MEMORY_READ_BIT,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_TRANSFER_BIT);
+	
+	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
+	
+	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
+
+
+
+
+
 
 	VulkanExampleBase::submitFrame();
 }
