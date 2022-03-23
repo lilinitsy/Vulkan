@@ -457,12 +457,10 @@ void VulkanExample::setup_multiview()
 			.arrayLayers   = multiview_layers,
 			.samples	   = VK_SAMPLE_COUNT_1_BIT,
 			.tiling		   = VK_IMAGE_TILING_OPTIMAL,
-			.usage		   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			.usage		   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		};
 		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.colour.image));
-
-
 
 		VkMemoryRequirements memory_requirements;
 		vkGetImageMemoryRequirements(device, multiview_pass.colour.image, &memory_requirements);
@@ -586,6 +584,8 @@ void VulkanExample::setup_multiview()
 			.finalLayout	= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 
+
+
 		// Depth attachment
 		attachments[1] = {
 			.flags			= 0,
@@ -699,19 +699,23 @@ void *receive_swapchain_image(void *devicerenderer)
 
 	vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &ve->server_image.data);
 	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
-	if(server_read > -1)
+	if(server_read != -1)
 	{
 		vku::rgb_to_rgba(servbuf, ve->server_image.data, num_bytes_for_image);
 	}
 
 	vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 
+	/*for(int i = 0; i < num_bytes_network_read; i++)
+	{
+		printf("%d\n", servbuf[i]);
+	}*/
+
 	return nullptr;
 }
 
 void VulkanExample::buildCommandBuffers()
 {
-	// Can't use the VK_CHECK_RESULT macro in here :(
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -758,7 +762,7 @@ void VulkanExample::buildCommandBuffers()
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
-			drawUI(drawCmdBuffers[i]);
+			//drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -811,30 +815,34 @@ void VulkanExample::buildCommandBuffers()
 		}
 	}
 
-	// Join after all the normal client rendering is done
-	pthread_join(vk_pthread.receive_image, nullptr);
 
 	//write_server_image_to_file(std::to_string(currentBuffer));
 
 	// Copy server image into the current swapchain image
 
-	/*
+	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
+
+	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+	//VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
+
+
 	// Transition swapchain image to transfer
-	vku::transition_image_layout(device, cmdPool, drawCmdBuffers[currentBuffer],
-								swapChain.images[currentBuffer],
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
+								multiview_pass.colour.image,
 								VK_ACCESS_MEMORY_READ_BIT,				  // src access_mask
 								VK_ACCESS_TRANSFER_WRITE_BIT,			  // dst access_mask
-								VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 		// current layout
+								VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 					// current layout
 								VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,	  // new layout to transfer to (destination)
 								VK_PIPELINE_STAGE_TRANSFER_BIT,			  // dst pipeline mask
 								VK_PIPELINE_STAGE_TRANSFER_BIT);		  // src pipeline mask
-
-			// Image subresource to be used in the vkbufferimagecopy
-			VkImageSubresourceLayers image_subresource = {
-				.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-				.baseArrayLayer = 0,
-				.layerCount		= 1,
-			};
+	
+	
+	// Image subresource to be used in the vkbufferimagecopy
+	VkImageSubresourceLayers image_subresource = {
+		.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseArrayLayer = 0,
+		.layerCount		= 1,
+	};
 
 	// Midpoint areas....
 	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
@@ -853,19 +861,89 @@ void VulkanExample::buildCommandBuffers()
 		.z = 0,
 	};
 
-	VkBufferImageCopy*/
+	// Create the vkbufferimagecopy pregions
+	VkBufferImageCopy copy_region = {
+		.bufferOffset = 0,
+		.bufferRowLength = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource = image_subresource,
+		.imageExtent = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
+
+
+	// Join after all the normal client rendering is done, at the latest point possible
+	//pthread_join(vk_pthread.receive_image, nullptr);
+
+
+	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	uint8_t servbuf[num_bytes_network_read];
+
+	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &server_image.data);
+	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
+	if(server_read != -1)
+	{
+		vku::rgb_to_rgba(servbuf, server_image.data, num_bytes_for_image);
+	}
+
+	//write_server_image_to_file(currentBuffer + "tmp.ppm");
+
+	vkUnmapMemory(device, server_image.buffer.memory);
+
+
+	//write_server_image_to_file("tmp.ppm");
+
+	// Print out what the server image is...
+
+	
+	// Perform copy
+	vkCmdCopyBufferToImage(copy_cmdbuf,
+		server_image.buffer.buffer,
+		multiview_pass.colour.image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1, &copy_region);
+	
+	
+	// Transition swapchain image back to present src khr
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
+		multiview_pass.colour.image,
+		VK_ACCESS_TRANSFER_WRITE_BIT,
+		VK_ACCESS_MEMORY_READ_BIT,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		VK_PIPELINE_STAGE_TRANSFER_BIT,
+		VK_PIPELINE_STAGE_TRANSFER_BIT);
+	
+	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
+	
+	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 }
 
 void VulkanExample::write_server_image_to_file(std::string name)
 {
+
+
+	
 	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
 	file << "P6\n"
 		 << FOVEAWIDTH << "\n"
 		 << FOVEAHEIGHT << "\n"
 		 << 255 << "\n";
+	for(int i = 0; i < FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t); i+=3)
+	{
+		file.write((char*) server_image.data, 3);
+		server_image.data += 3;
+	}
 
-	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
+	/*
+	while(server_image.data != nullptr)
+	{
+		file.write((char*) server_image.data, 1);
+		server_image.data++;
+	}
+
+	/*for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
 	{
 		uint32_t *row = (uint32_t *) server_image.data;
 		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
@@ -873,9 +951,9 @@ void VulkanExample::write_server_image_to_file(std::string name)
 			file.write((char *) row, 3);
 			row++;
 		}
-	}
+	}*/
 
-	file.close();
+	//file.close();
 
 }
 
@@ -1393,7 +1471,7 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
-	int receive_image_thread_create = pthread_create(&vk_pthread.receive_image, nullptr, receive_swapchain_image, this);
+	//int receive_image_thread_create = pthread_create(&vk_pthread.receive_image, nullptr, receive_swapchain_image, this);
 
 	buildCommandBuffers();
 
