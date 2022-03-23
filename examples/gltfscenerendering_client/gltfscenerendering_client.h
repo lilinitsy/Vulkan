@@ -230,7 +230,7 @@ class VulkanExample : public VulkanExampleBase
 	struct
 	{
 		vks::Buffer buffer;
-		uint8_t *data;
+		void *data;
 	} server_image;
 
 	struct

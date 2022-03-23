@@ -701,7 +701,7 @@ void *receive_swapchain_image(void *devicerenderer)
 	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, ve->server_image.data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t*) ve->server_image.data, num_bytes_for_image);
 	}
 
 	vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
@@ -1462,7 +1462,7 @@ void VulkanExample::draw()
 	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, server_image.data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t*) server_image.data, num_bytes_for_image);
 	}
 
 	//write_server_image_to_file(currentBuffer + "tmp.ppm");
