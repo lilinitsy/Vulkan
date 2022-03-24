@@ -1369,8 +1369,8 @@ void VulkanExample::draw()
 */
 void VulkanExample::send_image_to_client(ImagePacket image_packet)
 {
-	size_t output_framesize_bytes = FOVEAHEIGHT * FOVEAHEIGHT * 3;
-	size_t input_framesize_bytes  = FOVEAHEIGHT * FOVEAHEIGHT * sizeof(uint32_t);
+	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) image_packet.data, sendpacket, input_framesize_bytes);
