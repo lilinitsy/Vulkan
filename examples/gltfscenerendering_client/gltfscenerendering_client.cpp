@@ -691,17 +691,17 @@ void VulkanExample::setup_multiview()
 
 void *receive_swapchain_image(void *devicerenderer)
 {
-	VulkanExample *ve = (VulkanExample*) devicerenderer;
+	VulkanExample *ve = (VulkanExample *) devicerenderer;
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
 
-	vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &ve->server_image.data);
+	vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image.data);
 	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, (uint8_t*) ve->server_image.data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image.data, num_bytes_for_image);
 	}
 
 	vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
@@ -819,23 +819,22 @@ void VulkanExample::buildCommandBuffers()
 	//write_server_image_to_file(std::to_string(currentBuffer));
 
 	// Copy server image into the current swapchain image
-
 }
 
 void VulkanExample::write_server_image_to_file(std::string name)
 {
 
 
-	
+
 	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
 	file << "P6\n"
 		 << FOVEAWIDTH << "\n"
 		 << FOVEAHEIGHT << "\n"
 		 << 255 << "\n";
-	for(int i = 0; i < FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t); i+=3)
+	for(int i = 0; i < FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t); i += 3)
 	{
-		file.write((char*) server_image.data, 3);
+		file.write((char *) server_image.data, 3);
 		server_image.data += 3;
 	}
 
@@ -857,7 +856,6 @@ void VulkanExample::write_server_image_to_file(std::string name)
 	}*/
 
 	//file.close();
-
 }
 
 void VulkanExample::loadglTFFile(std::string filename)
@@ -1407,15 +1405,15 @@ void VulkanExample::draw()
 
 	// Transition swapchain image to transfer
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-								swapChain.images[currentBuffer],
-								VK_ACCESS_MEMORY_READ_BIT,				  // src access_mask
-								VK_ACCESS_TRANSFER_WRITE_BIT,			  // dst access_mask
-								VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 					// current layout
-								VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,	  // new layout to transfer to (destination)
-								VK_PIPELINE_STAGE_TRANSFER_BIT,			  // dst pipeline mask
-								VK_PIPELINE_STAGE_TRANSFER_BIT);		  // src pipeline mask
-	
-	
+								 swapChain.images[currentBuffer],
+								 VK_ACCESS_MEMORY_READ_BIT,			   // src access_mask
+								 VK_ACCESS_TRANSFER_WRITE_BIT,		   // dst access_mask
+								 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,	   // current layout
+								 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // new layout to transfer to (destination)
+								 VK_PIPELINE_STAGE_TRANSFER_BIT,	   // dst pipeline mask
+								 VK_PIPELINE_STAGE_TRANSFER_BIT);	   // src pipeline mask
+
+
 	// Image subresource to be used in the vkbufferimagecopy
 	VkImageSubresourceLayers image_subresource = {
 		.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1434,7 +1432,7 @@ void VulkanExample::draw()
 	// Get the top left point for right eye -- y is same
 	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
 
-	VkOffset3D left_image_offset = {
+	VkOffset3D lefteye_image_offset = {
 		.x = topleft_lefteye_x,
 		.y = topleft_eyepoint_y,
 		.z = 0,
@@ -1442,11 +1440,12 @@ void VulkanExample::draw()
 
 	// Create the vkbufferimagecopy pregions
 	VkBufferImageCopy copy_region = {
-		.bufferOffset = 0,
-		.bufferRowLength = FOVEAWIDTH,
+		.bufferOffset	   = 0,
+		.bufferRowLength   = FOVEAWIDTH,
 		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource = image_subresource,
-		.imageExtent = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+		.imageSubresource  = image_subresource,
+		.imageOffset 	   = lefteye_image_offset,
+		.imageExtent	   = {FOVEAWIDTH, FOVEAHEIGHT, 1},
 	};
 
 
@@ -1458,11 +1457,11 @@ void VulkanExample::draw()
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
 
-	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void**) &server_image.data);
+	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image.data);
 	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, (uint8_t*) server_image.data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t *) server_image.data, num_bytes_for_image);
 	}
 
 	//write_server_image_to_file(currentBuffer + "tmp.ppm");
@@ -1474,27 +1473,27 @@ void VulkanExample::draw()
 
 	// Print out what the server image is...
 
-	
+
 	// Perform copy
 	vkCmdCopyBufferToImage(copy_cmdbuf,
-		server_image.buffer.buffer,
-		swapChain.images[currentBuffer],
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		1, &copy_region);
-	
-	
+						   server_image.buffer.buffer,
+						   swapChain.images[currentBuffer],
+						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+						   1, &copy_region);
+
+
 	// Transition swapchain image back to present src khr
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-		swapChain.images[currentBuffer],
-		VK_ACCESS_TRANSFER_WRITE_BIT,
-		VK_ACCESS_MEMORY_READ_BIT,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-		VK_PIPELINE_STAGE_TRANSFER_BIT,
-		VK_PIPELINE_STAGE_TRANSFER_BIT);
-	
+								 swapChain.images[currentBuffer],
+								 VK_ACCESS_TRANSFER_WRITE_BIT,
+								 VK_ACCESS_MEMORY_READ_BIT,
+								 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+								 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+								 VK_PIPELINE_STAGE_TRANSFER_BIT,
+								 VK_PIPELINE_STAGE_TRANSFER_BIT);
+
 	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
-	
+
 	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 
 
