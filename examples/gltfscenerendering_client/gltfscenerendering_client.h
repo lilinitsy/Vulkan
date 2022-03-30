@@ -37,6 +37,10 @@ const uint32_t SERVERHEIGHT = 900;	// 512
 const uint32_t CLIENTWIDTH	= 1600;
 const uint32_t CLIENTHEIGHT = 900;
 
+// downsampled width
+const uint32_t DOWN_SWIDTH = 1280;
+const uint32_t DOWN_SHEIGHT = 720;
+
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 320;
 const uint32_t FOVEAHEIGHT = 240;

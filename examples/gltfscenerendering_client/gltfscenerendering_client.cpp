@@ -384,7 +384,7 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer,
 */
 
 VulkanExample::VulkanExample() :
-	VulkanExampleBase(ENABLE_VALIDATION, SERVERWIDTH, SERVERHEIGHT)
+	VulkanExampleBase(ENABLE_VALIDATION, CLIENTWIDTH, CLIENTHEIGHT)
 {
 	title		 = "glTF scene rendering";
 	camera.type	 = Camera::CameraType::firstperson;
@@ -452,7 +452,7 @@ void VulkanExample::setup_multiview()
 			.flags		   = 0,
 			.imageType	   = VK_IMAGE_TYPE_2D,
 			.format		   = swapChain.colorFormat,
-			.extent		   = {width, height, 1},
+			.extent		   = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
 			.mipLevels	   = 1,
 			.arrayLayers   = multiview_layers,
 			.samples	   = VK_SAMPLE_COUNT_1_BIT,
@@ -526,7 +526,7 @@ void VulkanExample::setup_multiview()
 			.flags		 = 0,
 			.imageType	 = VK_IMAGE_TYPE_2D,
 			.format		 = depthFormat,
-			.extent		 = {width, height, 1},
+			.extent		 = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
 			.mipLevels	 = 1,
 			.arrayLayers = multiview_layers,
 			.samples	 = VK_SAMPLE_COUNT_1_BIT,
@@ -787,13 +787,13 @@ void VulkanExample::buildCommandBuffers()
 		renderPassBeginInfo.renderPass				 = multiview_pass.renderpass;
 		renderPassBeginInfo.renderArea.offset.x		 = 0;
 		renderPassBeginInfo.renderArea.offset.y		 = 0;
-		renderPassBeginInfo.renderArea.extent.width	 = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
+		renderPassBeginInfo.renderArea.extent.width	 = DOWN_SWIDTH;
+		renderPassBeginInfo.renderArea.extent.height = DOWN_SHEIGHT;
 		renderPassBeginInfo.clearValueCount			 = 2;
 		renderPassBeginInfo.pClearValues			 = clearValues;
 
-		const VkViewport viewport = vks::initializers::viewport((float) width, (float) height, 0.0f, 1.0f);
-		const VkRect2D scissor	  = vks::initializers::rect2D(width, height, 0, 0);
+		const VkViewport viewport = vks::initializers::viewport((float) DOWN_SWIDTH, (float) DOWN_SHEIGHT, 0.0f, 1.0f);
+		const VkRect2D scissor	  = vks::initializers::rect2D(DOWN_SWIDTH, DOWN_SHEIGHT, 0, 0);
 
 		for(int32_t i = 0; i < multiview_pass.command_buffers.size(); ++i)
 		{
