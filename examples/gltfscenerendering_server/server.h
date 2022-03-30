@@ -40,6 +40,8 @@ struct Server
 		listen(socket_fd, 1);
 		// Accept a connection from a client
 		client_fd = accept(socket_fd, nullptr, nullptr);
+
+		printf("Client connection accepted\n");
 	}
 };
 

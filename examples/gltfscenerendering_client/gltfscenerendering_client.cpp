@@ -832,11 +832,11 @@ void VulkanExample::write_server_image_to_file(std::string name)
 		 << FOVEAWIDTH << "\n"
 		 << FOVEAHEIGHT << "\n"
 		 << 255 << "\n";
-	for(int i = 0; i < FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t); i += 3)
+	/*for(int i = 0; i < FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t); i += 3)
 	{
 		file.write((char *) server_image.data, 3);
 		server_image.data += 3;
-	}
+	}*/
 
 	/*
 	while(server_image.data != nullptr)
@@ -1347,6 +1347,7 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
+	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_multiview();
@@ -1354,7 +1355,6 @@ void VulkanExample::prepare()
 	setupDescriptors();
 	preparePipelines();
 	create_server_image_buffer();
-	client.connect_to_server(PORT);
 	VulkanExample::buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -1372,7 +1372,7 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
-	//int receive_image_thread_create = pthread_create(&vk_pthread.receive_image, nullptr, receive_swapchain_image, this);
+	int receive_image_thread_create = pthread_create(&vk_pthread.receive_image, nullptr, receive_swapchain_image, this);
 
 	buildCommandBuffers();
 
@@ -1450,9 +1450,10 @@ void VulkanExample::draw()
 
 
 	// Join after all the normal client rendering is done, at the latest point possible
-	//pthread_join(vk_pthread.receive_image, nullptr);
+	pthread_join(vk_pthread.receive_image, nullptr);
 
 
+/*
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
@@ -1467,7 +1468,7 @@ void VulkanExample::draw()
 	//write_server_image_to_file(currentBuffer + "tmp.ppm");
 
 	vkUnmapMemory(device, server_image.buffer.memory);
-
+*/
 
 	//write_server_image_to_file("tmp.ppm");
 
@@ -1496,12 +1497,17 @@ void VulkanExample::draw()
 
 	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 
-
-
-
-
-
+	// Submit frame to be drawn
 	VulkanExampleBase::submitFrame();
+
+	// Send an array with camera pos and rot back to server
+	float camera_data[6] = {
+		camera.position.x, camera.position.y, camera.position.z,
+		camera.rotation.x, camera.rotation.y, camera.rotation.z,
+	};
+
+	send(client.socket_fd, camera_data, 6 * sizeof(float), 0);
+	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
 }
 
 void VulkanExample::render()
