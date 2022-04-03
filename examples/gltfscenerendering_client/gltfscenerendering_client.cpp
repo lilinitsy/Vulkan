@@ -384,7 +384,7 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer,
 */
 
 VulkanExample::VulkanExample() :
-	VulkanExampleBase(ENABLE_VALIDATION, CLIENTWIDTH, CLIENTHEIGHT)
+	VulkanExampleBase(false, CLIENTWIDTH, CLIENTHEIGHT)
 {
 	title		 = "glTF scene rendering";
 	camera.type	 = Camera::CameraType::firstperson;
@@ -697,14 +697,14 @@ void *receive_swapchain_image(void *devicerenderer)
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
 
-	vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image.data);
+	vkMapMemory(ve->device, ve->server_image[ve->active_serverimage_index].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[ve->active_serverimage_index].data);
 	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image.data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[ve->active_serverimage_index].data, num_bytes_for_image);
 	}
 
-	vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
+	vkUnmapMemory(ve->device, ve->server_image[ve->active_serverimage_index].buffer.memory);
 
 	/*for(int i = 0; i < num_bytes_network_read; i++)
 	{
@@ -1263,11 +1263,16 @@ void VulkanExample::preparePipelines()
 
 void VulkanExample::create_server_image_buffer()
 {
+	for(uint32_t i = 0; i < 2; i++)
+	{
+
+	
 	VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	VK_CHECK_RESULT(vulkanDevice->createBuffer(
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&server_image.buffer, image_buffer_size));
+		&server_image[i].buffer, image_buffer_size));
+	}
 }
 
 void VulkanExample::prepareUniformBuffers()
@@ -1372,9 +1377,15 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
-	int receive_image_thread_create = pthread_create(&vk_pthread.receive_image, nullptr, receive_swapchain_image, this);
+	active_serverimage_index = 0;
+	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
+	pthread_join(vk_pthread.left_receive_image, nullptr);
+	
+	active_serverimage_index = 1;
+	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image, this);
 
 	buildCommandBuffers();
+	
 
 	// Multiview offscreen render
 
@@ -1395,6 +1406,9 @@ void VulkanExample::draw()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
+
+	// Join after all the normal client rendering is done, at the latest point possible
+	pthread_join(vk_pthread.right_receive_image, nullptr);
 
 
 	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
@@ -1431,6 +1445,7 @@ void VulkanExample::draw()
 
 	// Get the top left point for right eye -- y is same
 	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	
 
 	VkOffset3D lefteye_image_offset = {
 		.x = topleft_lefteye_x,
@@ -1438,8 +1453,9 @@ void VulkanExample::draw()
 		.z = 0,
 	};
 
+
 	// Create the vkbufferimagecopy pregions
-	VkBufferImageCopy copy_region = {
+	VkBufferImageCopy left_copy_region = {
 		.bufferOffset	   = 0,
 		.bufferRowLength   = FOVEAWIDTH,
 		.bufferImageHeight = FOVEAHEIGHT,
@@ -1449,8 +1465,22 @@ void VulkanExample::draw()
 	};
 
 
-	// Join after all the normal client rendering is done, at the latest point possible
-	pthread_join(vk_pthread.receive_image, nullptr);
+	VkOffset3D righteye_image_offset = {
+		.x = topleft_righteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+
+	VkBufferImageCopy right_copy_region = {
+		.bufferOffset = 0,
+		.bufferRowLength = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource = image_subresource,
+		.imageOffset = righteye_image_offset,
+		.imageExtent = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
+
 
 
 /*
@@ -1477,10 +1507,16 @@ void VulkanExample::draw()
 
 	// Perform copy
 	vkCmdCopyBufferToImage(copy_cmdbuf,
-						   server_image.buffer.buffer,
+						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],
 						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-						   1, &copy_region);
+						   1, &left_copy_region);
+
+	vkCmdCopyBufferToImage(copy_cmdbuf,
+							server_image[1].buffer.buffer,
+							swapChain.images[currentBuffer],
+							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+							1, &right_copy_region);
 
 
 	// Transition swapchain image back to present src khr

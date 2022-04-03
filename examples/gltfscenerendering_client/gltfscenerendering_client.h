@@ -231,15 +231,19 @@ class VulkanExample : public VulkanExampleBase
 	
 	Client client;
 
-	struct
+	struct ServerImage
 	{
 		vks::Buffer buffer;
 		void *data;
-	} server_image;
+	};
+
+	int active_serverimage_index;
+	ServerImage server_image[2];
 
 	struct
 	{
-		pthread_t receive_image;
+		pthread_t left_receive_image;
+		pthread_t right_receive_image;
 	} vk_pthread;
 
 	/*

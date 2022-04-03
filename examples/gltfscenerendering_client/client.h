@@ -46,11 +46,13 @@ struct Client
 		int connect_result = connect(socket_fd, (sockaddr *) &server_address, sizeof(server_address));
 		if(connect_result == -1)
 		{
-			std::string filename = "/sdcard/gltfscenerendering_client_log.txt";
+			std::string filename = "/sdcard/gltf_client";
 			std::ofstream file(filename, std::ios::out | std::ios::binary);
 			file << "Could not connect to server\n"
 				<< "PORT: " << server_address.sin_port << "\t" << "IP: " << server_address.sin_addr.s_addr << "\n";
 			file.close();
+
+			printf("COULD NOT CONNECT TO SERVER\n");
 			throw std::runtime_error("Could not connect to server");
 		}
 	}

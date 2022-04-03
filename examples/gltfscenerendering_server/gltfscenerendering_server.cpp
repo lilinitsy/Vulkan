@@ -1357,9 +1357,12 @@ void VulkanExample::draw()
 	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
 
 	send_image_to_client(lefteye_fovea);
+	send_image_to_client(righteye_fovea);
 	float camera_buf[6];
+	printf("\tImage sent to client\n");
 
 	int client_read = recv(server.client_fd, camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	printf("\tCamera data received from client\n");
 	camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
 	camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
 	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
