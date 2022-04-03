@@ -262,7 +262,7 @@ class VulkanExample : public VulkanExampleBase
 
 	void setup_multiview();
 	ImagePacket create_image_packet();
-	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset);
+	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D l_offset, VkOffset3D r_offset);
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
 	void send_image_to_client(ImagePacket image_packet);
 

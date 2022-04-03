@@ -691,10 +691,11 @@ void VulkanExample::setup_multiview()
 
 void *receive_swapchain_image(void *devicerenderer)
 {
+	printf("in recswapimage thread\n");
 	VulkanExample *ve = (VulkanExample *) devicerenderer;
 
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	VkDeviceSize num_bytes_network_read = 2 * FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= 2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
 
 	vkMapMemory(ve->device, ve->server_image[ve->active_serverimage_index].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[ve->active_serverimage_index].data);
@@ -1265,13 +1266,11 @@ void VulkanExample::create_server_image_buffer()
 {
 	for(uint32_t i = 0; i < 2; i++)
 	{
-
-	
-	VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&server_image[i].buffer, image_buffer_size));
+		VkDeviceSize image_buffer_size = 2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&server_image[i].buffer, image_buffer_size));
 	}
 }
 
@@ -1379,10 +1378,10 @@ void VulkanExample::draw()
 
 	active_serverimage_index = 0;
 	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
-	pthread_join(vk_pthread.left_receive_image, nullptr);
+	//pthread_join(vk_pthread.left_receive_image, nullptr);
 	
-	active_serverimage_index = 1;
-	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image, this);
+	//active_serverimage_index = 1;
+	//int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image, this);
 
 	buildCommandBuffers();
 	
@@ -1408,8 +1407,9 @@ void VulkanExample::draw()
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
 	// Join after all the normal client rendering is done, at the latest point possible
-	pthread_join(vk_pthread.right_receive_image, nullptr);
-
+	//pthread_join(vk_pthread.right_receive_image, nullptr);
+	pthread_join(vk_pthread.left_receive_image, nullptr);
+	printf("Left image joined\n");
 
 	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
 
@@ -1473,7 +1473,7 @@ void VulkanExample::draw()
 
 
 	VkBufferImageCopy right_copy_region = {
-		.bufferOffset = 0,
+		.bufferOffset = FOVEAWIDTH * sizeof(uint32_t),
 		.bufferRowLength = FOVEAWIDTH,
 		.bufferImageHeight = FOVEAHEIGHT,
 		.imageSubresource = image_subresource,
@@ -1513,7 +1513,7 @@ void VulkanExample::draw()
 						   1, &left_copy_region);
 
 	vkCmdCopyBufferToImage(copy_cmdbuf,
-							server_image[1].buffer.buffer,
+							server_image[0].buffer.buffer,
 							swapChain.images[currentBuffer],
 							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 							1, &right_copy_region);

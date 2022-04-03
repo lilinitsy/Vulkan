@@ -1353,11 +1353,14 @@ void VulkanExample::draw()
 	};
 
 	// Now copy the image packet back; Could probably copy in parallel...
-	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
-	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
+	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset, righteye_copy_offset);
+	//righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
+
+	write_imagepacket_to_file(lefteye_fovea, currentBuffer, "tmpserver");
+
 
 	send_image_to_client(lefteye_fovea);
-	send_image_to_client(righteye_fovea);
+	//send_image_to_client(righteye_fovea);
 	float camera_buf[6];
 	printf("\tImage sent to client\n");
 
@@ -1378,8 +1381,8 @@ void VulkanExample::draw()
 */
 void VulkanExample::send_image_to_client(ImagePacket image_packet)
 {
-	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	size_t output_framesize_bytes = 2 * FOVEAWIDTH * FOVEAHEIGHT * 3;
+	size_t input_framesize_bytes  = 2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) image_packet.data, sendpacket, input_framesize_bytes);
@@ -1387,7 +1390,7 @@ void VulkanExample::send_image_to_client(ImagePacket image_packet)
 }
 
 
-ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset)
+ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D l_offset, VkOffset3D r_offset)
 {
 	ImagePacket dst				   = image_packet;
 	VkCommandBuffer copy_cmdbuffer = vku::begin_command_buffer(device, cmdPool);
@@ -1423,7 +1426,7 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 	image_copy_region.srcSubresource.layerCount = 1;
 	image_copy_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	image_copy_region.dstSubresource.layerCount = 1;
-	image_copy_region.srcOffset					= offset;
+	image_copy_region.srcOffset					= l_offset;
 	image_copy_region.extent.width				= FOVEAWIDTH;
 	image_copy_region.extent.height				= FOVEAHEIGHT;
 	image_copy_region.extent.depth				= 1;
@@ -1435,6 +1438,32 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 				   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				   1,
 				   &image_copy_region);
+
+	VkOffset3D dst_r_offset = {FOVEAWIDTH, 0, 0};
+
+	VkImageCopy r_image_copy_region{};
+	r_image_copy_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	r_image_copy_region.srcSubresource.layerCount = 1;
+	r_image_copy_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	r_image_copy_region.dstSubresource.layerCount = 1;
+	r_image_copy_region.dstOffset					= dst_r_offset;
+	r_image_copy_region.srcOffset					= r_offset;
+	r_image_copy_region.extent.width				= FOVEAWIDTH;
+	r_image_copy_region.extent.height				= FOVEAHEIGHT;
+	r_image_copy_region.extent.depth				= 1;
+
+	vkCmdCopyImage(copy_cmdbuffer,
+					src_image,
+					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+					dst.image,
+					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+					1,
+					&r_image_copy_region);
+	
+
+
+
+	
 	//printf("vkImageCopy performed\n");
 	// Transition dst image to general layout -- lets us map the image memory
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
@@ -1471,7 +1500,7 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 ImagePacket VulkanExample::create_image_packet()
 {
 	ImagePacket dst;
-	VkExtent3D extent = {FOVEAWIDTH, FOVEAHEIGHT, 1};
+	VkExtent3D extent = {2 * FOVEAWIDTH, FOVEAHEIGHT, 1};
 
 	// Create the imagepacket image
 	VkImageCreateInfo imagepacket_image_ci = {
@@ -1525,14 +1554,14 @@ void VulkanExample::write_imagepacket_to_file(ImagePacket packet, uint32_t buffe
 	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
 	file << "P6\n"
-		 << FOVEAWIDTH << "\n"
+		 << 2 * FOVEAWIDTH << "\n"
 		 << FOVEAHEIGHT << "\n"
 		 << 255 << "\n";
 
 	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
 	{
 		uint32_t *row = (uint32_t *) packet.data;
-		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
+		for(uint32_t x = 0; x < 2 * FOVEAWIDTH; x++)
 		{
 			file.write((char *) row, 3);
 			row++;
