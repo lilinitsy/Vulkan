@@ -693,18 +693,20 @@ void *receive_swapchain_image(void *devicerenderer)
 {
 	VulkanExample *ve = (VulkanExample *) devicerenderer;
 
+	uint32_t idx = ve->active_serverimage_index;
+
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
 
-	vkMapMemory(ve->device, ve->server_image[ve->active_serverimage_index].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[ve->active_serverimage_index].data);
-	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
+	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
+	int server_read = recv(ve->client.socket_fd[idx], servbuf, num_bytes_network_read, MSG_WAITALL);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[ve->active_serverimage_index].data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data, num_bytes_for_image);
 	}
 
-	vkUnmapMemory(ve->device, ve->server_image[ve->active_serverimage_index].buffer.memory);
+	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
 
 	/*for(int i = 0; i < num_bytes_network_read; i++)
 	{
@@ -1542,7 +1544,7 @@ void VulkanExample::draw()
 		camera.rotation.x, camera.rotation.y, camera.rotation.z,
 	};
 
-	send(client.socket_fd, camera_data, 6 * sizeof(float), 0);
+	send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
 	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
 }
 
