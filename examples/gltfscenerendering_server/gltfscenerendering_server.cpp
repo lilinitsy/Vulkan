@@ -1548,10 +1548,10 @@ void VulkanExample::render()
 {
 	draw();
 
-	if(camera.updated)
-	{
+	//if(camera.updated)
+	//{
 		updateUniformBuffers();
-	}
+	//}
 }
 
 void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
