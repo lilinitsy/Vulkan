@@ -48,6 +48,10 @@ struct Server
 			// Listen for a client to connect
 			listen(socket_fd[i], 1);
 			printf("Listening for client on port %d\n", PORT[i]);
+		}
+		
+		for(uint32_t i = 0; i < 2; i++)
+		{
 			// Accept a connection from a client
 			client_fd[i] = accept(socket_fd[i], nullptr, nullptr);
 
