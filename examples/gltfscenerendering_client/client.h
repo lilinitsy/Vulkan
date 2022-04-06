@@ -36,11 +36,10 @@ struct Client
 			.sin_port	= htons(static_cast<in_port_t>(port)),
 			//.sin_addr	= inet_addr("192.168.1.6"),
 		};
-		//inet_aton("192.168.1.6", (in_addr*) &server_address.sin_addr.s_addr);
+		inet_aton("192.168.1.6", (in_addr*) &server_address.sin_addr.s_addr);
 
 		/*inet_pton(AF_INET, "192.168.1.6", &(server_address.sin_addr));
 		std::cout << "sin_addr: " << server_address.sin_addr.s_addr << "\n";
-		printf("Connected to server\n");
 		*/
 
 		int connect_result = connect(socket_fd, (sockaddr *) &server_address, sizeof(server_address));
@@ -55,6 +54,8 @@ struct Client
 			printf("COULD NOT CONNECT TO SERVER\n");
 			throw std::runtime_error("Could not connect to server");
 		}
+		printf("Connected to server\n");
+
 	}
 };
 

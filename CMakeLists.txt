@@ -103,20 +103,20 @@ ELSE()
 ENDIF()
 
 # Set preprocessor defines
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNOMINMAX -D_USE_MATH_DEFINES -mavx2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DNOMINMAX -D_USE_MATH_DEFINES")
 
 # Force build for release
 set(CMAKE_BUILD_TYPE Release)
 
 # Clang specific stuff
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-enum -mavx2")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-switch-enum")
 endif()
 
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-add_definitions(-mavx2)
-add_compile_options(-mavx2)
+
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

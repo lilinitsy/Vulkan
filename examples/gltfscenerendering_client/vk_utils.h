@@ -120,6 +120,7 @@ namespace vku
 
 	void rgba_to_rgb(const uint8_t *__restrict__ in, uint8_t *__restrict__ out, size_t len)
 	{
+		#pragma GCC ivdep
 		for(size_t i = 0, j = 0; i < len; i += 4, j += 3)
 		{
 			out[j + 0] = in[i + 0];
@@ -128,9 +129,9 @@ namespace vku
 		}
 	}
 
-
 	void rgb_to_rgba(const uint8_t *__restrict__ in, uint8_t *__restrict__ out, size_t len)
 	{
+		#pragma GCC ivdep
 		for(size_t i = 0, j = 0; i < len; i += 4, j += 3)
 		{
 			out[i + 0] = in[j + 0];

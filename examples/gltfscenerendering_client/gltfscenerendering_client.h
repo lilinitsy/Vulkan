@@ -32,10 +32,10 @@
 #define PORT 1234
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH	= 1600; // 512
-const uint32_t SERVERHEIGHT = 900;	// 512
-const uint32_t CLIENTWIDTH	= 1600;
-const uint32_t CLIENTHEIGHT = 900;
+const uint32_t SERVERWIDTH	= 1280; // 512
+const uint32_t SERVERHEIGHT = 720;	// 512
+const uint32_t CLIENTWIDTH	= 1280;
+const uint32_t CLIENTHEIGHT = 720;
 
 // downsampled width
 const uint32_t DOWN_SWIDTH = 1280;

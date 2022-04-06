@@ -1376,14 +1376,14 @@ void VulkanExample::prepare()
 void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
-
+	
 	active_serverimage_index = 0;
 	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
 	pthread_join(vk_pthread.left_receive_image, nullptr);
 	
 	active_serverimage_index = 1;
 	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image, this);
-
+	
 	buildCommandBuffers();
 	
 
@@ -1406,7 +1406,7 @@ void VulkanExample::draw()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
-
+	
 	// Join after all the normal client rendering is done, at the latest point possible
 	pthread_join(vk_pthread.right_receive_image, nullptr);
 
@@ -1480,25 +1480,8 @@ void VulkanExample::draw()
 		.imageOffset = righteye_image_offset,
 		.imageExtent = {FOVEAWIDTH, FOVEAHEIGHT, 1},
 	};
+	
 
-
-
-/*
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
-
-	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image.data);
-	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) server_image.data, num_bytes_for_image);
-	}
-
-	//write_server_image_to_file(currentBuffer + "tmp.ppm");
-
-	vkUnmapMemory(device, server_image.buffer.memory);
-*/
 
 	//write_server_image_to_file("tmp.ppm");
 
@@ -1506,6 +1489,7 @@ void VulkanExample::draw()
 
 
 	// Perform copy
+	
 	vkCmdCopyBufferToImage(copy_cmdbuf,
 						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],
@@ -1529,8 +1513,6 @@ void VulkanExample::draw()
 								 VK_PIPELINE_STAGE_TRANSFER_BIT,
 								 VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
-
 	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 
 	// Submit frame to be drawn
@@ -1543,6 +1525,7 @@ void VulkanExample::draw()
 	};
 
 	send(client.socket_fd, camera_data, 6 * sizeof(float), 0);
+
 	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
 }
 
