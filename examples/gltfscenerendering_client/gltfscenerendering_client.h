@@ -38,8 +38,8 @@ const uint32_t CLIENTWIDTH	= 1280;
 const uint32_t CLIENTHEIGHT = 720;
 
 // downsampled width
-const uint32_t DOWN_SWIDTH = 1280;
-const uint32_t DOWN_SHEIGHT = 720;
+const uint32_t DOWN_SWIDTH = 1024;
+const uint32_t DOWN_SHEIGHT = 576;
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 320;
@@ -254,6 +254,9 @@ class VulkanExample : public VulkanExampleBase
 	 * directly into the memory, those won't be needed.
 	*/
 
+	float avg_fps = 0.0f;
+	float total_fps = 0.0f;
+	int num_frames = 0;
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
 

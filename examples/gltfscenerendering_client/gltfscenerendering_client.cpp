@@ -762,7 +762,7 @@ void VulkanExample::buildCommandBuffers()
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
-			//drawUI(drawCmdBuffers[i]);
+			drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1352,7 +1352,7 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
-	client.connect_to_server(PORT);
+	//client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_multiview();
@@ -1376,13 +1376,15 @@ void VulkanExample::prepare()
 void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
+
+	num_frames++;
 	
-	active_serverimage_index = 0;
-	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
-	pthread_join(vk_pthread.left_receive_image, nullptr);
+	//active_serverimage_index = 0;
+	//int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
+	//pthread_join(vk_pthread.left_receive_image, nullptr);
 	
-	active_serverimage_index = 1;
-	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image, this);
+	//active_serverimage_index = 1;
+	//int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image, this);
 	
 	buildCommandBuffers();
 	
@@ -1406,12 +1408,14 @@ void VulkanExample::draw()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
+
+	VulkanExampleBase::submitFrame();
 	
 	// Join after all the normal client rendering is done, at the latest point possible
-	pthread_join(vk_pthread.right_receive_image, nullptr);
+	//pthread_join(vk_pthread.right_receive_image, nullptr);
 
 
-	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
+	/*VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
 
 	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 	//VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
@@ -1525,8 +1529,11 @@ void VulkanExample::draw()
 	};
 
 	send(client.socket_fd, camera_data, 6 * sizeof(float), 0);
+	*/
+	total_fps += lastFPS;
+	avg_fps = total_fps / num_frames;
+	printf("%f ms/frame (%f fps)\n", (1000.0f / flastFPS), flastFPS);
 
-	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
 }
 
 void VulkanExample::render()
