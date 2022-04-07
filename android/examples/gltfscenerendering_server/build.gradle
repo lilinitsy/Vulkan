@@ -49,8 +49,8 @@ task copyTask {
     }
 
     copy {
-       from '../../../data/shaders/glsl/gltfscenerendering'
-       into 'assets/shaders/glsl/gltfscenerendering'
+       from '../../../data/shaders/glsl/gltfscenerendering_server'
+       into 'assets/shaders/glsl/gltfscenerendering_server'
        include '*.*'
     }
 

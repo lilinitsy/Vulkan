@@ -21,7 +21,6 @@
 */
 
 pthread_mutex_t gpu_map_lock;
-pthread_mutex_t thread_creation_lock;
 
 VulkanglTFScene::~VulkanglTFScene()
 {
@@ -750,6 +749,17 @@ void *receive_swapchain_image2(void *devicerenderer)
 
 void VulkanExample::buildCommandBuffers()
 {
+		// Midpoint areas....
+	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
+	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
+
+	// Get the top left point for left eye
+	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	// Get the top left point for right eye -- y is same
+	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -1215,8 +1225,8 @@ void VulkanExample::preparePipelines()
 	pipelineCI.pStages						= shaderStages.data();
 
 
-	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
 
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
@@ -1281,8 +1291,8 @@ void VulkanExample::preparePipelines()
 
 	for(uint32_t i = 0; i < 2; i++)
 	{
-		viewdisp_shader_stages[0]					  = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		viewdisp_shader_stages[1]					  = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		viewdisp_shader_stages[0]					  = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		viewdisp_shader_stages[1]					  = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		viewdisp_shader_stages[1].pSpecializationInfo = &viewdisp_specialization_info;
 		multiview_array_layer						  = (float) (1 - i);
 
@@ -1386,7 +1396,7 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
-	if(pthread_mutex_init(&gpu_map_lock, nullptr) != 0 || pthread_mutex_init(&thread_creation_lock, nullptr) != 0)
+	if(pthread_mutex_init(&gpu_map_lock, nullptr) != 0)
 	{
 		printf("mutex initialization unsuccessful\n");
 		return;
@@ -1416,15 +1426,11 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
-	pthread_mutex_lock(&thread_creation_lock);
 	active_serverimage_index			 = 0;
 	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
-	pthread_mutex_unlock(&thread_creation_lock);
 
-	pthread_mutex_lock(&thread_creation_lock);
 	active_serverimage_index			  = 1;
 	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
-	pthread_mutex_unlock(&thread_creation_lock);
 
 	buildCommandBuffers();
 
@@ -1548,7 +1554,8 @@ void VulkanExample::draw()
 	// Print out what the server image is...
 
 
-	// Perform copy
+	// Perform copy 
+	
 	vkCmdCopyBufferToImage(copy_cmdbuf,
 						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],

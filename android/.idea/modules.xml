@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/android.iml" filepath="$PROJECT_DIR$/.idea/modules/android.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/examples/gltfscenerendering_client/android.gltfscenerendering_client.iml" filepath="$PROJECT_DIR$/.idea/modules/examples/gltfscenerendering_client/android.gltfscenerendering_client.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/examples/gltfscenerendering_server/android.gltfscenerendering_server.iml" filepath="$PROJECT_DIR$/.idea/modules/examples/gltfscenerendering_server/android.gltfscenerendering_server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/examples/imgui/android.imgui.iml" filepath="$PROJECT_DIR$/.idea/modules/examples/imgui/android.imgui.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/examples/multiview/android.multiview.iml" filepath="$PROJECT_DIR$/.idea/modules/examples/multiview/android.multiview.iml" />
+    </modules>
+  </component>
+</project>
