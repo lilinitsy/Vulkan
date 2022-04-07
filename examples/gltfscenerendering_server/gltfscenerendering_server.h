@@ -31,13 +31,14 @@
 
 #define ENABLE_VALIDATION true
 
-#define PORT 1234
+
+const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH	= 1600; // 512
-const uint32_t SERVERHEIGHT = 900;	// 512
-const uint32_t CLIENTWIDTH	= 1920;
-const uint32_t CLIENTHEIGHT = 1080;
+const uint32_t SERVERWIDTH	= 1280; // 512
+const uint32_t SERVERHEIGHT = 720;	// 512
+const uint32_t CLIENTWIDTH	= 1280;
+const uint32_t CLIENTHEIGHT = 720;
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 320;
@@ -264,7 +265,7 @@ class VulkanExample : public VulkanExampleBase
 	ImagePacket create_image_packet();
 	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset);
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
-	void send_image_to_client(ImagePacket image_packet);
+	void send_image_to_client(ImagePacket image_packet, uint32_t client_fd_index);
 
 
 	virtual void render();

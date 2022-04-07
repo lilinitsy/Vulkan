@@ -14,6 +14,8 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+#include <omp.h>
+
 #include "gltfscenerendering_server.h"
 
 /*
@@ -1356,12 +1358,15 @@ void VulkanExample::draw()
 	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
 	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
 
-	send_image_to_client(lefteye_fovea);
-	send_image_to_client(righteye_fovea);
+	//#pragma omp parallel
+	//{
+	send_image_to_client(lefteye_fovea, 0);
+	send_image_to_client(righteye_fovea, 1);
+	//}
 	float camera_buf[6];
 	printf("\tImage sent to client\n");
 
-	int client_read = recv(server.client_fd, camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
 	printf("\tCamera data received from client\n");
 	camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
 	camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
@@ -1376,14 +1381,14 @@ void VulkanExample::draw()
 	The receiving buffer on the client needs to be able to receive
 	the same number of packets.
 */
-void VulkanExample::send_image_to_client(ImagePacket image_packet)
+void VulkanExample::send_image_to_client(ImagePacket image_packet, uint32_t client_fd_index)
 {
 	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) image_packet.data, sendpacket, input_framesize_bytes);
-	send(server.client_fd, sendpacket, output_framesize_bytes, 0);
+	send(server.client_fd[client_fd_index], sendpacket, output_framesize_bytes, 0);
 }
 
 
@@ -1548,10 +1553,10 @@ void VulkanExample::render()
 {
 	draw();
 
-	if(camera.updated)
-	{
-		updateUniformBuffers();
-	}
+	//if(camera.updated)
+	//{
+	updateUniformBuffers();
+	//}
 }
 
 void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)

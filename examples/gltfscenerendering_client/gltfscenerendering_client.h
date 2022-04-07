@@ -24,12 +24,12 @@
 #endif
 #include "tiny_gltf.h"
 
-#include "vk_utils.h"
 #include "client.h"
+#include "vk_utils.h"
 #include "vulkanexamplebase.h"
 
 #define ENABLE_VALIDATION true
-#define PORT 1234
+const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
 const uint32_t SERVERWIDTH	= 1280; // 512
@@ -38,8 +38,8 @@ const uint32_t CLIENTWIDTH	= 1280;
 const uint32_t CLIENTHEIGHT = 720;
 
 // downsampled width
-const uint32_t DOWN_SWIDTH = 1024;
-const uint32_t DOWN_SHEIGHT = 576;
+const uint32_t DOWN_SWIDTH	= 1280;
+const uint32_t DOWN_SHEIGHT = 720;
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 320;
@@ -228,7 +228,8 @@ class VulkanExample : public VulkanExampleBase
 		std::vector<VkCommandBuffer> command_buffers;
 		std::vector<VkFence> wait_fences;
 	} multiview_pass;
-	
+
+	// Client[0] will be left eye, client[1] will be right eye
 	Client client;
 
 	struct ServerImage

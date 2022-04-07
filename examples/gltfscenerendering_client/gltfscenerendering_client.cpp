@@ -20,6 +20,8 @@
         Vulkan glTF scene class
 */
 
+pthread_mutex_t gpu_map_lock;
+
 VulkanglTFScene::~VulkanglTFScene()
 {
 	// Release all Vulkan resources allocated for the model
@@ -692,24 +694,55 @@ void VulkanExample::setup_multiview()
 void *receive_swapchain_image(void *devicerenderer)
 {
 	VulkanExample *ve = (VulkanExample *) devicerenderer;
+	//printf("Calling recv swap image on %d\n", ve->active_serverimage_index);
+
+	uint32_t idx = 0;
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 	uint8_t servbuf[num_bytes_network_read];
 
-	vkMapMemory(ve->device, ve->server_image[ve->active_serverimage_index].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[ve->active_serverimage_index].data);
-	int server_read = recv(ve->client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], servbuf, num_bytes_network_read, MSG_WAITALL);
+	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
+
+
+	pthread_mutex_lock(&gpu_map_lock);
+	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[ve->active_serverimage_index].data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data, num_bytes_for_image);
 	}
 
-	vkUnmapMemory(ve->device, ve->server_image[ve->active_serverimage_index].buffer.memory);
+	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
+	pthread_mutex_unlock(&gpu_map_lock);
 
-	/*for(int i = 0; i < num_bytes_network_read; i++)
+	return nullptr;
+}
+
+void *receive_swapchain_image2(void *devicerenderer)
+{
+	VulkanExample *ve = (VulkanExample *) devicerenderer;
+	//printf("Calling recv swap image on %d\n", ve->active_serverimage_index);
+
+	uint32_t idx = 1;
+
+	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	uint8_t servbuf[num_bytes_network_read];
+
+	int server_read = recv(ve->client.socket_fd[idx], servbuf, num_bytes_network_read, MSG_WAITALL);
+	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
+
+
+	pthread_mutex_lock(&gpu_map_lock);
+	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
+	if(server_read != -1)
 	{
-		printf("%d\n", servbuf[i]);
-	}*/
+		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data, num_bytes_for_image);
+	}
+
+	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
+	pthread_mutex_unlock(&gpu_map_lock);
 
 	return nullptr;
 }
@@ -762,7 +795,7 @@ void VulkanExample::buildCommandBuffers()
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
-			drawUI(drawCmdBuffers[i]);
+			//drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1266,12 +1299,12 @@ void VulkanExample::create_server_image_buffer()
 	for(uint32_t i = 0; i < 2; i++)
 	{
 
-	
-	VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&server_image[i].buffer, image_buffer_size));
+
+		VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&server_image[i].buffer, image_buffer_size));
 	}
 }
 
@@ -1352,7 +1385,12 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
-	//client.connect_to_server(PORT);
+	if(pthread_mutex_init(&gpu_map_lock, nullptr) != 0)
+	{
+		printf("mutex initialization unsuccessful\n");
+		return;
+	}
+	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_multiview();
@@ -1377,17 +1415,14 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
-	num_frames++;
-	
-	//active_serverimage_index = 0;
-	//int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
-	//pthread_join(vk_pthread.left_receive_image, nullptr);
-	
-	//active_serverimage_index = 1;
-	//int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image, this);
-	
+	active_serverimage_index			 = 0;
+	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
+
+	active_serverimage_index			  = 1;
+	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
+
 	buildCommandBuffers();
-	
+
 
 	// Multiview offscreen render
 
@@ -1409,13 +1444,12 @@ void VulkanExample::draw()
 	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
-	VulkanExampleBase::submitFrame();
-	
 	// Join after all the normal client rendering is done, at the latest point possible
-	//pthread_join(vk_pthread.right_receive_image, nullptr);
+	pthread_join(vk_pthread.right_receive_image, nullptr);
+	pthread_join(vk_pthread.left_receive_image, nullptr);
 
 
-	/*VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
+	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
 
 	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 	//VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
@@ -1449,7 +1483,7 @@ void VulkanExample::draw()
 
 	// Get the top left point for right eye -- y is same
 	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	
+
 
 	VkOffset3D lefteye_image_offset = {
 		.x = topleft_lefteye_x,
@@ -1464,7 +1498,7 @@ void VulkanExample::draw()
 		.bufferRowLength   = FOVEAWIDTH,
 		.bufferImageHeight = FOVEAHEIGHT,
 		.imageSubresource  = image_subresource,
-		.imageOffset 	   = lefteye_image_offset,
+		.imageOffset	   = lefteye_image_offset,
 		.imageExtent	   = {FOVEAWIDTH, FOVEAHEIGHT, 1},
 	};
 
@@ -1477,15 +1511,32 @@ void VulkanExample::draw()
 
 
 	VkBufferImageCopy right_copy_region = {
-		.bufferOffset = 0,
-		.bufferRowLength = FOVEAWIDTH,
+		.bufferOffset	   = 0,
+		.bufferRowLength   = FOVEAWIDTH,
 		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource = image_subresource,
-		.imageOffset = righteye_image_offset,
-		.imageExtent = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+		.imageSubresource  = image_subresource,
+		.imageOffset	   = righteye_image_offset,
+		.imageExtent	   = {FOVEAWIDTH, FOVEAHEIGHT, 1},
 	};
-	
 
+
+
+	/*
+	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	uint8_t servbuf[num_bytes_network_read];
+
+	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image.data);
+	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
+	if(server_read != -1)
+	{
+		vku::rgb_to_rgba(servbuf, (uint8_t *) server_image.data, num_bytes_for_image);
+	}
+
+	//write_server_image_to_file(currentBuffer + "tmp.ppm");
+
+	vkUnmapMemory(device, server_image.buffer.memory);
+*/
 
 	//write_server_image_to_file("tmp.ppm");
 
@@ -1493,7 +1544,6 @@ void VulkanExample::draw()
 
 
 	// Perform copy
-	
 	vkCmdCopyBufferToImage(copy_cmdbuf,
 						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],
@@ -1501,10 +1551,10 @@ void VulkanExample::draw()
 						   1, &left_copy_region);
 
 	vkCmdCopyBufferToImage(copy_cmdbuf,
-							server_image[1].buffer.buffer,
-							swapChain.images[currentBuffer],
-							VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-							1, &right_copy_region);
+						   server_image[1].buffer.buffer,
+						   swapChain.images[currentBuffer],
+						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+						   1, &right_copy_region);
 
 
 	// Transition swapchain image back to present src khr
@@ -1517,6 +1567,8 @@ void VulkanExample::draw()
 								 VK_PIPELINE_STAGE_TRANSFER_BIT,
 								 VK_PIPELINE_STAGE_TRANSFER_BIT);
 
+	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
+
 	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 
 	// Submit frame to be drawn
@@ -1524,12 +1576,15 @@ void VulkanExample::draw()
 
 	// Send an array with camera pos and rot back to server
 	float camera_data[6] = {
-		camera.position.x, camera.position.y, camera.position.z,
-		camera.rotation.x, camera.rotation.y, camera.rotation.z,
+		camera.position.x,
+		camera.position.y,
+		camera.position.z,
+		camera.rotation.x,
+		camera.rotation.y,
+		camera.rotation.z,
 	};
 
-	send(client.socket_fd, camera_data, 6 * sizeof(float), 0);
-	*/
+	send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
 	total_fps += lastFPS;
 	avg_fps = total_fps / num_frames;
 	printf("%f ms/frame (%f fps)\n", (1000.0f / flastFPS), flastFPS);
