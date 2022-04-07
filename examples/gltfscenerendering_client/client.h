@@ -3,9 +3,9 @@
 
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 
 
 struct Client
@@ -30,7 +30,6 @@ struct Client
 				throw std::runtime_error("Could not set client socket file descriptor to non blocking");
 			}*/
 		}
-
 	}
 
 	void connect_to_server(const uint32_t PORT[])

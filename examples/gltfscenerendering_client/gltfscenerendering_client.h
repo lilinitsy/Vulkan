@@ -24,8 +24,8 @@
 #endif
 #include "tiny_gltf.h"
 
-#include "vk_utils.h"
 #include "client.h"
+#include "vk_utils.h"
 #include "vulkanexamplebase.h"
 
 #define ENABLE_VALIDATION true
@@ -38,7 +38,7 @@ const uint32_t CLIENTWIDTH	= 1280;
 const uint32_t CLIENTHEIGHT = 720;
 
 // downsampled width
-const uint32_t DOWN_SWIDTH = 1280;
+const uint32_t DOWN_SWIDTH	= 1280;
 const uint32_t DOWN_SHEIGHT = 720;
 
 // Possibly temp offloaded rendering attributes
@@ -228,7 +228,7 @@ class VulkanExample : public VulkanExampleBase
 		std::vector<VkCommandBuffer> command_buffers;
 		std::vector<VkFence> wait_fences;
 	} multiview_pass;
-	
+
 	// Client[0] will be left eye, client[1] will be right eye
 	Client client;
 

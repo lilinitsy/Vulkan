@@ -14,6 +14,8 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+#include <omp.h>
+
 #include "gltfscenerendering_server.h"
 
 /*
@@ -1356,8 +1358,11 @@ void VulkanExample::draw()
 	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
 	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
 
+	//#pragma omp parallel
+	//{
 	send_image_to_client(lefteye_fovea, 0);
 	send_image_to_client(righteye_fovea, 1);
+	//}
 	float camera_buf[6];
 	printf("\tImage sent to client\n");
 
@@ -1550,7 +1555,7 @@ void VulkanExample::render()
 
 	//if(camera.updated)
 	//{
-		updateUniformBuffers();
+	updateUniformBuffers();
 	//}
 }
 
