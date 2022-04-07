@@ -749,16 +749,21 @@ void *receive_swapchain_image2(void *devicerenderer)
 
 void VulkanExample::buildCommandBuffers()
 {
-		// Midpoint areas....
-	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
-	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
+	int32_t halfwidth = width / 2;
 
-	// Get the top left point for left eye
-	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+	int32_t leftmost_boundary = 0;
+	int32_t left_mid_boundary = CLIENTWIDTH / 4 - FOVEAWIDTH / 4;
+	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 4;
+	int32_t leftmost_right_boundary = width / 2;
 
-	// Get the top left point for right eye -- y is same
-	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t top_boundary = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
+
+	int32_t right_leftmost_boundary = width / 2;
+	int32_t right_left_mid_boundary = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
+	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
+	int32_t right_rightmost_boundary = width;
+
 
 	// View display rendering
 	{
@@ -783,25 +788,60 @@ void VulkanExample::buildCommandBuffers()
 
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+			VkRect2D scissor_left_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
+			VkRect2D scissor_left_top = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
+			VkRect2D scissor_left_right = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
+			VkRect2D scissor_left_bottom = vks::initializers::rect2D(left_right_mid_boundary, height - bottom_boundary, 0, height - top_boundary);
+		
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
-			VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			// Bind descriptor set
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
-			// Left eye
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
+
+			// Left eye
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
-			// Right eye
-			viewport.x		 = (float) width / 2.0f;
-			scissor.offset.x = width / 2.0f;
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+
+			// Right eye
+			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
+
+			
+			viewport.x		 = (float) width / 2.0f;
+			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+	
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
+
+			scissor_left_right.offset.x += width / 2.0f;
+			scissor_left_left.offset.x += width / 2.0f;
+			scissor_left_bottom.offset.x += width / 2.0f;
+			scissor_left_top.offset.x += width / 2.0f;
+		
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
@@ -1556,6 +1596,7 @@ void VulkanExample::draw()
 
 	// Perform copy 
 	
+	
 	vkCmdCopyBufferToImage(copy_cmdbuf,
 						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],
@@ -1567,7 +1608,7 @@ void VulkanExample::draw()
 						   swapChain.images[currentBuffer],
 						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 						   1, &right_copy_region);
-
+	
 
 	// Transition swapchain image back to present src khr
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,

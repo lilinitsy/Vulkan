@@ -24,25 +24,6 @@ void main()
 {
 	vec4 color = texture(samplerColorMap, inUV) * vec4(inColor, 1.0);
 
-	int midpoint_of_eye_x = CLIENTWIDTH / 2;
-	int midpoint_of_eye_y = CLIENTHEIGHT / 2;
-
-	// Get the top left point for left eye
-	int left_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int right_lefteye_x = midpoint_of_eye_x + (FOVEAWIDTH / 2);
-	int top_eyepoint_y = midpoint_of_eye_y + (FOVEAHEIGHT / 4);
-	int bottom_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 4);
-
-	// Get the top left point for right eye -- y is same
-	int left_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int right_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x + (FOVEAWIDTH / 2);
-
-	if((gl_FragCoord.x > left_lefteye_x && gl_FragCoord.x < right_lefteye_x && gl_FragCoord.y > bottom_eyepoint_y && gl_FragCoord.y < top_eyepoint_y))// ||
-	//(gl_FragCoord.x > left_righteye_x && gl_FragCoord.x < right_righteye_x && gl_FragCoord.y > bottom_eyepoint_y && gl_FragCoord.y < top_eyepoint_y))
-	//if(gl_FragCoord.x < midpoint_of_eye_x)
-	{
-		discard;
-	}
 
 	vec3 N = normalize(inNormal);
 	vec3 T = normalize(inTangent.xyz);
