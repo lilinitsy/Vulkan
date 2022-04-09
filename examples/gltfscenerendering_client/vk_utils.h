@@ -129,8 +129,11 @@ namespace vku
 	}
 
 
-	void rgb_to_rgba(const uint8_t *__restrict__ in, uint8_t *__restrict__ out, size_t len)
+	void rgb_to_rgba(const uint8_t *__restrict__ in, uint8_t *__restrict__ out)
 	{
+		size_t len = 320 * 240 * 4; 
+
+		
 		for(size_t i = 0, j = 0; i < len; i += 4, j += 3)
 		{
 			out[i + 0] = in[j + 0];

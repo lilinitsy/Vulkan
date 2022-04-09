@@ -700,21 +700,20 @@ void *receive_swapchain_image(void *devicerenderer)
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
 
-	int server_read = recv(ve->client.socket_fd[idx], servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
 	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
 
 
-	pthread_mutex_lock(&gpu_map_lock);
+	/*pthread_mutex_lock(&gpu_map_lock);
 	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data); //, num_bytes_for_image);
 	}
 
 	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
-	pthread_mutex_unlock(&gpu_map_lock);
+	pthread_mutex_unlock(&gpu_map_lock);*/
 
 	return nullptr;
 }
@@ -728,27 +727,42 @@ void *receive_swapchain_image2(void *devicerenderer)
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
 
-	int server_read = recv(ve->client.socket_fd[idx], servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_network_read, MSG_WAITALL);
 	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
 
 
-	pthread_mutex_lock(&gpu_map_lock);
+	/*pthread_mutex_lock(&gpu_map_lock);
 	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
 	if(server_read != -1)
 	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data, num_bytes_for_image);
+		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data); // num_bytes_for_image);
 	}
 
 	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
-	pthread_mutex_unlock(&gpu_map_lock);
+	pthread_mutex_unlock(&gpu_map_lock);*/
 
 	return nullptr;
 }
 
 void VulkanExample::buildCommandBuffers()
 {
+	int32_t halfwidth = width / 2;
+
+	int32_t leftmost_boundary = 0;
+	int32_t left_mid_boundary = CLIENTWIDTH / 4 - FOVEAWIDTH / 4;
+	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 4;
+	int32_t leftmost_right_boundary = width / 2;
+
+	int32_t top_boundary = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
+
+	int32_t right_leftmost_boundary = width / 2;
+	int32_t right_left_mid_boundary = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
+	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
+	int32_t right_rightmost_boundary = width;
+
+
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -772,25 +786,60 @@ void VulkanExample::buildCommandBuffers()
 
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+			VkRect2D scissor_left_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
+			VkRect2D scissor_left_top = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
+			VkRect2D scissor_left_right = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
+			VkRect2D scissor_left_bottom = vks::initializers::rect2D(left_right_mid_boundary, height - bottom_boundary, 0, height - top_boundary);
+		
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
-			VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			// Bind descriptor set
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
-			// Left eye
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
+
+			// Left eye
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
-			// Right eye
-			viewport.x		 = (float) width / 2.0f;
-			scissor.offset.x = width / 2.0f;
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+
+			// Right eye
+			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
+
+			
+			viewport.x		 = (float) width / 2.0f;
+			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+	
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
+
+			scissor_left_right.offset.x += width / 2.0f;
+			scissor_left_left.offset.x += width / 2.0f;
+			scissor_left_bottom.offset.x += width / 2.0f;
+			scissor_left_top.offset.x += width / 2.0f;
+		
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
@@ -1214,8 +1263,8 @@ void VulkanExample::preparePipelines()
 	pipelineCI.pStages						= shaderStages.data();
 
 
-	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
 
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
@@ -1280,8 +1329,8 @@ void VulkanExample::preparePipelines()
 
 	for(uint32_t i = 0; i < 2; i++)
 	{
-		viewdisp_shader_stages[0]					  = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		viewdisp_shader_stages[1]					  = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		viewdisp_shader_stages[0]					  = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		viewdisp_shader_stages[1]					  = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		viewdisp_shader_stages[1].pSpecializationInfo = &viewdisp_specialization_info;
 		multiview_array_layer						  = (float) (1 - i);
 
@@ -1449,6 +1498,18 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.left_receive_image, nullptr);
 
 
+	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+
+	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
+	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
+	vkUnmapMemory(device, server_image[0].buffer.memory);
+
+	vkMapMemory(device, server_image[1].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[1].data);
+	vku::rgb_to_rgba(right_servbuf, (uint8_t *) server_image[1].data); //, num_bytes_for_image);
+	vkUnmapMemory(device, server_image[1].buffer.memory);
+
+
 	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
 
 	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -1520,30 +1581,7 @@ void VulkanExample::draw()
 	};
 
 
-
-	/*
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
-
-	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image.data);
-	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) server_image.data, num_bytes_for_image);
-	}
-
-	//write_server_image_to_file(currentBuffer + "tmp.ppm");
-
-	vkUnmapMemory(device, server_image.buffer.memory);
-*/
-
-	//write_server_image_to_file("tmp.ppm");
-
-	// Print out what the server image is...
-
-
-	// Perform copy
+	// Perform copy 
 	vkCmdCopyBufferToImage(copy_cmdbuf,
 						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],
@@ -1555,7 +1593,7 @@ void VulkanExample::draw()
 						   swapChain.images[currentBuffer],
 						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 						   1, &right_copy_region);
-
+	
 
 	// Transition swapchain image back to present src khr
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
@@ -1588,7 +1626,6 @@ void VulkanExample::draw()
 	total_fps += lastFPS;
 	avg_fps = total_fps / num_frames;
 	printf("%f ms/frame (%f fps)\n", (1000.0f / flastFPS), flastFPS);
-
 }
 
 void VulkanExample::render()

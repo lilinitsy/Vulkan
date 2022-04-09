@@ -6,6 +6,8 @@ set(NAME vulkanExamples)
 
 project(${NAME})
 
+set(CMAKE_CXX_COMPILER "/usr/bin/aarch64-linux-gnu-g++")
+
 # Try to get vectorization
 
 include_directories(external)
@@ -119,6 +121,19 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+#add_compile_options(--vectorize)
+#add_compile_options(-O3)
+#add_compile_options(-Otime)
+#add_compile_options(--cpu Cortex-A8)
+
+add_compile_options(-mcpu=cortex-a72)
+
+#add_compile_options(-ftree-vectorize)
+#add_compile_options(-mfpu=neon)
+#add_compile_options(-mcpu=cortex-a8)
+
+
 
 file(GLOB SOURCE *.cpp )
 

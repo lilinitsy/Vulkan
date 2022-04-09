@@ -259,6 +259,10 @@ class VulkanExample : public VulkanExampleBase
 	float total_fps = 0.0f;
 	int num_frames = 0;
 
+	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
+	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
+
+
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
 
 
