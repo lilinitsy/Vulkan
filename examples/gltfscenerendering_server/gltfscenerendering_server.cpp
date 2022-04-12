@@ -1289,6 +1289,41 @@ void VulkanExample::prepare()
 	prepared = true;
 }
 
+
+void *send_image_to_client(void *hostrenderer)
+{
+	VulkanExample *ve = (VulkanExample *) hostrenderer;
+
+	uint32_t idx = 0;
+	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+
+	uint8_t sendpacket[output_framesize_bytes];
+	vku::rgba_to_rgb((uint8_t *) ve->lefteye_fovea.data, sendpacket, input_framesize_bytes);
+	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
+
+	printf("Image sent to client on port %d\n", PORT[idx]);
+
+	return nullptr;
+}
+
+void *send_image_to_client2(void *hostrenderer)
+{
+	VulkanExample *ve = (VulkanExample *) hostrenderer;
+
+	uint32_t idx = 1;
+	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+
+	uint8_t sendpacket[output_framesize_bytes];
+	vku::rgba_to_rgb((uint8_t *) ve->righteye_fovea.data, sendpacket, input_framesize_bytes);
+	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
+	
+	printf("Image sent to client on port %d\n", PORT[idx]);
+
+	return nullptr;
+}
+
 void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
@@ -1360,11 +1395,17 @@ void VulkanExample::draw()
 
 	//#pragma omp parallel
 	//{
-	send_image_to_client(lefteye_fovea, 0);
-	send_image_to_client(righteye_fovea, 1);
+	//	send_image_to_client(lefteye_fovea, 0);
+	//	send_image_to_client(righteye_fovea, 1);
 	//}
+
+	int left_image_send = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
+	int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
+
+	pthread_join(vk_pthread.left_send_image, nullptr);
+	pthread_join(vk_pthread.right_send_image, nullptr);
+
 	float camera_buf[6];
-	printf("\tImage sent to client\n");
 
 	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
 	printf("\tCamera data received from client\n");
@@ -1381,7 +1422,7 @@ void VulkanExample::draw()
 	The receiving buffer on the client needs to be able to receive
 	the same number of packets.
 */
-void VulkanExample::send_image_to_client(ImagePacket image_packet, uint32_t client_fd_index)
+/*void VulkanExample::send_image_to_client(ImagePacket image_packet, uint32_t client_fd_index)
 {
 	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
@@ -1389,7 +1430,8 @@ void VulkanExample::send_image_to_client(ImagePacket image_packet, uint32_t clie
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) image_packet.data, sendpacket, input_framesize_bytes);
 	send(server.client_fd[client_fd_index], sendpacket, output_framesize_bytes, 0);
-}
+}*/
+
 
 
 ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset)
