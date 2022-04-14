@@ -700,21 +700,9 @@ void *receive_swapchain_image(void *devicerenderer)
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
 
-	int server_read = recv(ve->client.socket_fd[idx], servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
 	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
-
-
-	pthread_mutex_lock(&gpu_map_lock);
-	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data, num_bytes_for_image);
-	}
-
-	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
-	pthread_mutex_unlock(&gpu_map_lock);
 
 	return nullptr;
 }
@@ -728,21 +716,9 @@ void *receive_swapchain_image2(void *devicerenderer)
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
 
-	int server_read = recv(ve->client.socket_fd[idx], servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_network_read, MSG_WAITALL);
 	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
-
-
-	pthread_mutex_lock(&gpu_map_lock);
-	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data, num_bytes_for_image);
-	}
-
-	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
-	pthread_mutex_unlock(&gpu_map_lock);
 
 	return nullptr;
 }
@@ -1500,6 +1476,18 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.left_receive_image, nullptr);
 
 
+	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+
+	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
+	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
+	vkUnmapMemory(device, server_image[0].buffer.memory);
+
+	vkMapMemory(device, server_image[1].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[1].data);
+	vku::rgb_to_rgba(right_servbuf, (uint8_t *) server_image[1].data); //, num_bytes_for_image);
+	vkUnmapMemory(device, server_image[1].buffer.memory);
+
+
 	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
 
 	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -1571,32 +1559,7 @@ void VulkanExample::draw()
 	};
 
 
-
-	/*
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t servbuf[num_bytes_network_read];
-
-	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image.data);
-	int server_read = recv(client.socket_fd, servbuf, num_bytes_network_read, MSG_WAITALL);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) server_image.data, num_bytes_for_image);
-	}
-
-	//write_server_image_to_file(currentBuffer + "tmp.ppm");
-
-	vkUnmapMemory(device, server_image.buffer.memory);
-*/
-
-	//write_server_image_to_file("tmp.ppm");
-
-	// Print out what the server image is...
-
-
 	// Perform copy 
-	
-	
 	vkCmdCopyBufferToImage(copy_cmdbuf,
 						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],
@@ -1638,7 +1601,9 @@ void VulkanExample::draw()
 	};
 
 	send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
-	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
+	total_fps += lastFPS;
+	avg_fps = total_fps / num_frames;
+	printf("%f ms/frame (%f fps)\n", (1000.0f / flastFPS), flastFPS);
 }
 
 void VulkanExample::render()

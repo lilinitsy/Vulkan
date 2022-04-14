@@ -251,6 +251,8 @@ void VulkanExampleBase::nextFrame()
 	if (fpsTimer > 1000.0f)
 	{
 		lastFPS = static_cast<uint32_t>((float)frameCounter * (1000.0f / fpsTimer));
+		flastFPS = static_cast<uint32_t>((float)frameCounter * (1000.0f / fpsTimer));
+
 #if defined(_WIN32)
 		if (!settings.overlay)	{
 			std::string windowTitle = getWindowTitle();
@@ -349,6 +351,7 @@ void VulkanExampleBase::renderLoop()
 			if (fpsTimer > 1000.0f)
 			{
 				lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+				flastFPS = (float)frameCounter * (1000.0f / fpsTimer);
 				frameCounter = 0;
 				lastTimestamp = tEnd;
 			}
@@ -437,6 +440,7 @@ void VulkanExampleBase::renderLoop()
 		if (fpsTimer > 1000.0f)
 		{
 			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			flastFPS = (float)frameCounter * (1000.0f / fpsTimer);
 			frameCounter = 0;
 			lastTimestamp = tEnd;
 		}
@@ -479,6 +483,7 @@ void VulkanExampleBase::renderLoop()
 		if (fpsTimer > 1000.0f)
 		{
 			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			flastFPS = (float)frameCounter * (1000.0f / fpsTimer);
 			frameCounter = 0;
 			lastTimestamp = tEnd;
 		}
@@ -530,6 +535,7 @@ void VulkanExampleBase::renderLoop()
 				xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());
 			}
 			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			flastFPS = (float)frameCounter * (1000.0f / fpsTimer);
 			frameCounter = 0;
 			lastTimestamp = tEnd;
 		}
@@ -581,6 +587,7 @@ void VulkanExampleBase::renderLoop()
 					windowTitle.size(), windowTitle.c_str());
 			}
 			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			flastFPS = (float)frameCounter * (1000.0f / fpsTimer);
 			frameCounter = 0;
 			lastTimestamp = tEnd;
 		}
@@ -615,6 +622,7 @@ void VulkanExampleBase::renderLoop()
 		if (fpsTimer > 1000.0f)
 		{
 			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			flastFPS = (float)frameCounter * (1000.0f / fpsTimer);
 			frameCounter = 0;
 			lastTimestamp = tEnd;
 		}

@@ -119,6 +119,7 @@ public:
 	// Frame counter to display fps
 	uint32_t frameCounter = 0;
 	uint32_t lastFPS = 0;
+	float flastFPS = 0.0f;
 	std::chrono::time_point<std::chrono::high_resolution_clock> lastTimestamp;
 	// Vulkan instance, stores all per-application states
 	VkInstance instance;

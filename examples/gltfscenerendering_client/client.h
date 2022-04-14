@@ -21,6 +21,8 @@ struct Client
 			{
 				throw std::runtime_error("Could not create a socket");
 			}
+			uint32_t optval = 1;
+			setsockopt(socket_fd[i], SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
 			// Set socket non blocking
 			/*int nonblockinresult = fcntl(socket_fd, F_GETFL) & O_NONBLOCK;
@@ -43,10 +45,9 @@ struct Client
 			};
 			//inet_aton("192.168.1.6", (in_addr*) &server_address.sin_addr.s_addr);
 
-			/*inet_pton(AF_INET, "192.168.1.6", &(server_address.sin_addr));
-			std::cout << "sin_addr: " << server_address.sin_addr.s_addr << "\n";
+			inet_pton(AF_INET, "192.168.1.6", &(server_address.sin_addr));
 			printf("Connected to server\n");
-			*/
+			
 
 			int connect_result = connect(socket_fd[i], (sockaddr *) &server_address, sizeof(server_address));
 			if(connect_result == -1)
