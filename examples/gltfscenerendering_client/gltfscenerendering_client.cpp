@@ -704,17 +704,6 @@ void *receive_swapchain_image(void *devicerenderer)
 	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
 	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
 
-
-	/*pthread_mutex_lock(&gpu_map_lock);
-	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data); //, num_bytes_for_image);
-	}
-
-	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
-	pthread_mutex_unlock(&gpu_map_lock);*/
-
 	return nullptr;
 }
 
@@ -730,17 +719,6 @@ void *receive_swapchain_image2(void *devicerenderer)
 
 	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_network_read, MSG_WAITALL);
 	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
-
-
-	/*pthread_mutex_lock(&gpu_map_lock);
-	vkMapMemory(ve->device, ve->server_image[idx].buffer.memory, 0, num_bytes_for_image, 0, (void **) &ve->server_image[idx].data);
-	if(server_read != -1)
-	{
-		vku::rgb_to_rgba(servbuf, (uint8_t *) ve->server_image[idx].data); // num_bytes_for_image);
-	}
-
-	vkUnmapMemory(ve->device, ve->server_image[idx].buffer.memory);
-	pthread_mutex_unlock(&gpu_map_lock);*/
 
 	return nullptr;
 }
