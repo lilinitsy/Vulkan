@@ -712,7 +712,7 @@ void *receive_swapchain_image2(void *devicerenderer)
 	VulkanExample *ve = (VulkanExample *) devicerenderer;
 	//printf("Calling recv swap image on %d\n", ve->active_serverimage_index);
 
-	uint32_t idx = 1;
+	uint32_t idx = 1;	
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
@@ -723,20 +723,39 @@ void *receive_swapchain_image2(void *devicerenderer)
 	return nullptr;
 }
 
+void *send_camera_data(void *devicerenderer)
+{
+	VulkanExample *ve = (VulkanExample*) devicerenderer;
+
+	// Send an array with camera pos and rot back to server
+	float camera_data[6] = {
+		ve->camera.position.x,
+		ve->camera.position.y,
+		ve->camera.position.z,
+		ve->camera.rotation.x,
+		ve->camera.rotation.y,
+		ve->camera.rotation.z,
+	};
+
+	send(ve->client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
+
+	return nullptr;
+}
+
 void VulkanExample::buildCommandBuffers()
 {
 	int32_t halfwidth = width / 2;
 
-	int32_t leftmost_boundary = 0;
-	int32_t left_mid_boundary = CLIENTWIDTH / 4 - FOVEAWIDTH / 4;
-	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 4;
+	int32_t leftmost_boundary		= 0;
+	int32_t left_mid_boundary		= CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
+	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 2;
 	int32_t leftmost_right_boundary = width / 2;
 
-	int32_t top_boundary = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t top_boundary	= CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
 	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
 
-	int32_t right_leftmost_boundary = width / 2;
-	int32_t right_left_mid_boundary = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
+	int32_t right_leftmost_boundary	 = width / 2;
+	int32_t right_left_mid_boundary	 = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
 	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
 	int32_t right_rightmost_boundary = width;
 
@@ -765,11 +784,11 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			VkRect2D scissor_left_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
-			VkRect2D scissor_left_top = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
-			VkRect2D scissor_left_right = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
+			VkRect2D scissor_left_left	 = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
+			VkRect2D scissor_left_top	 = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
+			VkRect2D scissor_left_right	 = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
 			VkRect2D scissor_left_bottom = vks::initializers::rect2D(left_right_mid_boundary, height - bottom_boundary, 0, height - top_boundary);
-		
+
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 
@@ -795,17 +814,17 @@ void VulkanExample::buildCommandBuffers()
 			// Right eye
 			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
 
-			
-			viewport.x		 = (float) width / 2.0f;
+
+			viewport.x = (float) width / 2.0f;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-	
+
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
 
 			scissor_left_right.offset.x += width / 2.0f;
 			scissor_left_left.offset.x += width / 2.0f;
 			scissor_left_bottom.offset.x += width / 2.0f;
 			scissor_left_top.offset.x += width / 2.0f;
-		
+
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
@@ -1475,6 +1494,8 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.right_receive_image, nullptr);
 	pthread_join(vk_pthread.left_receive_image, nullptr);
 
+	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
+
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
@@ -1559,7 +1580,7 @@ void VulkanExample::draw()
 	};
 
 
-	// Perform copy 
+	// Perform copy
 	vkCmdCopyBufferToImage(copy_cmdbuf,
 						   server_image[0].buffer.buffer,
 						   swapChain.images[currentBuffer],
@@ -1571,7 +1592,7 @@ void VulkanExample::draw()
 						   swapChain.images[currentBuffer],
 						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 						   1, &right_copy_region);
-	
+
 
 	// Transition swapchain image back to present src khr
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
@@ -1590,17 +1611,8 @@ void VulkanExample::draw()
 	// Submit frame to be drawn
 	VulkanExampleBase::submitFrame();
 
-	// Send an array with camera pos and rot back to server
-	float camera_data[6] = {
-		camera.position.x,
-		camera.position.y,
-		camera.position.z,
-		camera.rotation.x,
-		camera.rotation.y,
-		camera.rotation.z,
-	};
+	pthread_join(vk_pthread.send_thread, nullptr);
 
-	send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
 	total_fps += lastFPS;
 	avg_fps = total_fps / num_frames;
 	printf("%f ms/frame (%f fps)\n", (1000.0f / flastFPS), flastFPS);

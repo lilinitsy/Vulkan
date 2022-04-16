@@ -47,7 +47,7 @@ struct Client
 
 			inet_pton(AF_INET, "192.168.1.6", &(server_address.sin_addr));
 			printf("Connected to server\n");
-			
+
 
 			int connect_result = connect(socket_fd[i], (sockaddr *) &server_address, sizeof(server_address));
 			if(connect_result == -1)

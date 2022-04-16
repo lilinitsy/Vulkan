@@ -32,9 +32,9 @@
 const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH	= 1920; // 512
-const uint32_t SERVERHEIGHT = 1080;	// 512
-const uint32_t CLIENTWIDTH	= 1920;
+const uint32_t SERVERWIDTH	= 2400; // 512
+const uint32_t SERVERHEIGHT = 1080; // 512
+const uint32_t CLIENTWIDTH	= 2400;
 const uint32_t CLIENTHEIGHT = 1080;
 
 // downsampled width
@@ -245,6 +245,7 @@ class VulkanExample : public VulkanExampleBase
 	{
 		pthread_t left_receive_image;
 		pthread_t right_receive_image;
+		pthread_t send_thread;
 	} vk_pthread;
 
 	/*
@@ -255,9 +256,9 @@ class VulkanExample : public VulkanExampleBase
 	 * directly into the memory, those won't be needed.
 	*/
 
-	float avg_fps = 0.0f;
+	float avg_fps	= 0.0f;
 	float total_fps = 0.0f;
-	int num_frames = 0;
+	int num_frames	= 0;
 
 	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
 	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];

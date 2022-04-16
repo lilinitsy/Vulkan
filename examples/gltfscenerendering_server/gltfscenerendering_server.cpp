@@ -396,6 +396,7 @@ VulkanExample::VulkanExample() :
 	camera.movementSpeed = 4.0f;
 
 	printf("Scene width, height: %d\t%d\n", width, height);
+	printf("Fullscreen: %d\n", settings.fullscreen);
 
 	// Multiview setup
 	// Enable extension required for multiview
@@ -743,7 +744,7 @@ void VulkanExample::buildCommandBuffers()
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
-			drawUI(drawCmdBuffers[i]);
+			//drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1294,15 +1295,18 @@ void *send_image_to_client(void *hostrenderer)
 {
 	VulkanExample *ve = (VulkanExample *) hostrenderer;
 
-	uint32_t idx = 0;
+	uint32_t idx				  = 0;
 	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) ve->lefteye_fovea.data, sendpacket, input_framesize_bytes);
-	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
 
-	printf("Image sent to client on port %d\n", PORT[idx]);
+	//std::chrono::_V2::system_clock::time_point start = std::chrono::high_resolution_clock::now();
+	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
+	//float timediff = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start).count();
+
+	//printf("timediff on port %d: %f\n", PORT[idx], timediff);
 
 	return nullptr;
 }
@@ -1311,14 +1315,14 @@ void *send_image_to_client2(void *hostrenderer)
 {
 	VulkanExample *ve = (VulkanExample *) hostrenderer;
 
-	uint32_t idx = 1;
+	uint32_t idx				  = 1;
 	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) ve->righteye_fovea.data, sendpacket, input_framesize_bytes);
 	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
-	
+
 	printf("Image sent to client on port %d\n", PORT[idx]);
 
 	return nullptr;
@@ -1399,7 +1403,7 @@ void VulkanExample::draw()
 	//	send_image_to_client(righteye_fovea, 1);
 	//}
 
-	int left_image_send = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
+	int left_image_send	 = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
 
 	pthread_join(vk_pthread.left_send_image, nullptr);
