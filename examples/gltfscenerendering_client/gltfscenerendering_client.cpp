@@ -744,22 +744,6 @@ void *send_camera_data(void *devicerenderer)
 
 void VulkanExample::buildCommandBuffers()
 {
-	int32_t halfwidth = width / 2;
-
-	int32_t leftmost_boundary		= 0;
-	int32_t left_mid_boundary		= CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
-	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 2;
-	int32_t leftmost_right_boundary = width / 2;
-
-	int32_t top_boundary	= CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
-	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
-
-	int32_t right_leftmost_boundary	 = width / 2;
-	int32_t right_left_mid_boundary	 = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
-	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
-	int32_t right_rightmost_boundary = width;
-
-
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -784,64 +768,34 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			VkRect2D scissor_left_left	 = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
-			VkRect2D scissor_left_top	 = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
-			VkRect2D scissor_left_right	 = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
-			VkRect2D scissor_left_bottom = vks::initializers::rect2D(left_right_mid_boundary, height - bottom_boundary, 0, height - top_boundary);
-
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-
+			VkRect2D scissor = vks::initializers::rect2D(width / 2, height, 0, 0);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 			// Bind descriptor set
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
 
 			// Left eye
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
 
 			// Right eye
-			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
 
 
 			viewport.x = (float) width / 2.0f;
+			scissor.offset.x = width / 2;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
 
-			scissor_left_right.offset.x += width / 2.0f;
-			scissor_left_left.offset.x += width / 2.0f;
-			scissor_left_bottom.offset.x += width / 2.0f;
-			scissor_left_top.offset.x += width / 2.0f;
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
-			//drawUI(drawCmdBuffers[i]);
+			drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1436,7 +1390,7 @@ void VulkanExample::prepare()
 		printf("mutex initialization unsuccessful\n");
 		return;
 	}
-	client.connect_to_server(PORT);
+	//client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_multiview();
@@ -1461,12 +1415,6 @@ void VulkanExample::draw()
 {
 	VulkanExampleBase::prepareFrame();
 
-	active_serverimage_index			 = 0;
-	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
-
-	active_serverimage_index			  = 1;
-	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
-
 	buildCommandBuffers();
 
 
@@ -1490,128 +1438,8 @@ void VulkanExample::draw()
 	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
-	// Join after all the normal client rendering is done, at the latest point possible
-	pthread_join(vk_pthread.right_receive_image, nullptr);
-	pthread_join(vk_pthread.left_receive_image, nullptr);
-
-	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
-
-
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-
-	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
-	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
-	vkUnmapMemory(device, server_image[0].buffer.memory);
-
-	vkMapMemory(device, server_image[1].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[1].data);
-	vku::rgb_to_rgba(right_servbuf, (uint8_t *) server_image[1].data); //, num_bytes_for_image);
-	vkUnmapMemory(device, server_image[1].buffer.memory);
-
-
-	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
-
-	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-	//VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
-
-
-	// Transition swapchain image to transfer
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-								 swapChain.images[currentBuffer],
-								 VK_ACCESS_MEMORY_READ_BIT,			   // src access_mask
-								 VK_ACCESS_TRANSFER_WRITE_BIT,		   // dst access_mask
-								 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,	   // current layout
-								 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // new layout to transfer to (destination)
-								 VK_PIPELINE_STAGE_TRANSFER_BIT,	   // dst pipeline mask
-								 VK_PIPELINE_STAGE_TRANSFER_BIT);	   // src pipeline mask
-
-
-	// Image subresource to be used in the vkbufferimagecopy
-	VkImageSubresourceLayers image_subresource = {
-		.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-		.baseArrayLayer = 0,
-		.layerCount		= 1,
-	};
-
-	// Midpoint areas....
-	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
-	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
-
-	// Get the top left point for left eye
-	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
-
-	// Get the top left point for right eye -- y is same
-	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
-
-
-	VkOffset3D lefteye_image_offset = {
-		.x = topleft_lefteye_x,
-		.y = topleft_eyepoint_y,
-		.z = 0,
-	};
-
-
-	// Create the vkbufferimagecopy pregions
-	VkBufferImageCopy left_copy_region = {
-		.bufferOffset	   = 0,
-		.bufferRowLength   = FOVEAWIDTH,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource  = image_subresource,
-		.imageOffset	   = lefteye_image_offset,
-		.imageExtent	   = {FOVEAWIDTH, FOVEAHEIGHT, 1},
-	};
-
-
-	VkOffset3D righteye_image_offset = {
-		.x = topleft_righteye_x,
-		.y = topleft_eyepoint_y,
-		.z = 0,
-	};
-
-
-	VkBufferImageCopy right_copy_region = {
-		.bufferOffset	   = 0,
-		.bufferRowLength   = FOVEAWIDTH,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource  = image_subresource,
-		.imageOffset	   = righteye_image_offset,
-		.imageExtent	   = {FOVEAWIDTH, FOVEAHEIGHT, 1},
-	};
-
-
-	// Perform copy
-	vkCmdCopyBufferToImage(copy_cmdbuf,
-						   server_image[0].buffer.buffer,
-						   swapChain.images[currentBuffer],
-						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-						   1, &left_copy_region);
-
-	vkCmdCopyBufferToImage(copy_cmdbuf,
-						   server_image[1].buffer.buffer,
-						   swapChain.images[currentBuffer],
-						   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-						   1, &right_copy_region);
-
-
-	// Transition swapchain image back to present src khr
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-								 swapChain.images[currentBuffer],
-								 VK_ACCESS_TRANSFER_WRITE_BIT,
-								 VK_ACCESS_MEMORY_READ_BIT,
-								 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-								 VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-								 VK_PIPELINE_STAGE_TRANSFER_BIT,
-								 VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
-
-	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
-
 	// Submit frame to be drawn
 	VulkanExampleBase::submitFrame();
-
-	pthread_join(vk_pthread.send_thread, nullptr);
 
 	total_fps += lastFPS;
 	avg_fps = total_fps / num_frames;
