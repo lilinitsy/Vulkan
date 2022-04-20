@@ -1459,6 +1459,11 @@ void VulkanExample::prepare()
 
 void VulkanExample::draw()
 {
+	std::string filename = "/sdcard/gltf_client.log";
+	std::ofstream file(filename, std::ios::out | std::ios::binary);
+	file << "DRAW CALLED\n";
+	file.close();
+
 	VulkanExampleBase::prepareFrame();
 
 	active_serverimage_index			 = 0;
@@ -1468,6 +1473,8 @@ void VulkanExample::draw()
 	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
 
 	buildCommandBuffers();
+
+	
 
 
 	// Multiview offscreen render
