@@ -697,6 +697,10 @@ void VulkanExample::setup_multiview()
 
 void VulkanExample::buildCommandBuffers()
 {
+	int32_t left_mid_boundary 	= CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
+	int32_t top_boundary		= CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary 	= CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
+
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -722,7 +726,9 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
-			VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
+			//VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
+			VkRect2D scissor = vks::initializers::rect2D(FOVEAWIDTH, FOVEAHEIGHT, left_mid_boundary, top_boundary);
+		
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
@@ -735,7 +741,7 @@ void VulkanExample::buildCommandBuffers()
 
 			// Right eye
 			viewport.x		 = (float) width / 2.0f;
-			scissor.offset.x = width / 2.0f;
+			scissor.offset.x += width / 2.0f;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
