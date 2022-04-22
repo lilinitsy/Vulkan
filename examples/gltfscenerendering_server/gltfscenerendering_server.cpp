@@ -1323,7 +1323,6 @@ void *send_image_to_client2(void *hostrenderer)
 	vku::rgba_to_rgb((uint8_t *) ve->righteye_fovea.data, sendpacket, input_framesize_bytes);
 	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
 
-	printf("Image sent to client on port %d\n", PORT[idx]);
 
 	return nullptr;
 }
@@ -1412,10 +1411,39 @@ void VulkanExample::draw()
 	float camera_buf[6];
 
 	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
-	printf("\tCamera data received from client\n");
 	camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
 	camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
-	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
+
+
+	if(numframes == 1024)
+	{
+		int len = 1024 * sizeof(float) * 7;
+		float databuf[len];
+		int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
+
+		std::string filename = "DATA.tsv";
+		std::ofstream file(filename, std::ios::out | std::ios::binary);
+		file << "framenum\trecvswapchain\tsendcamera\talphaadd\tcopyintoswap\tnetframetime\tfps\tmbps\n";
+
+		for(uint32_t i = 0; i < 1024; i++)
+		{
+			std::string datapointstr = std::to_string(i) + "\t" +
+									   std::to_string(databuf[i]) + "\t" +
+									   std::to_string(databuf[i + 1024 * 1]) + "\t" +
+									   std::to_string(databuf[i + 1024 * 2]) + "\t" +
+									   std::to_string(databuf[i + 1024 * 3]) + "\t" +
+									   std::to_string(databuf[i + 1024 * 4]) + "\t" +
+									   std::to_string(databuf[i + 1024 * 5]) + "\t" +
+									   std::to_string(databuf[i + 1024 * 6]) + "\t\n";
+
+			file << datapointstr;
+		}
+
+		file.close();
+	}
+
+
+	numframes++;
 }
 
 /*

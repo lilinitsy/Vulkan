@@ -238,7 +238,6 @@ class VulkanExample : public VulkanExampleBase
 		void *data;
 	};
 
-	int active_serverimage_index;
 	ServerImage server_image[2];
 
 	struct
@@ -259,6 +258,29 @@ class VulkanExample : public VulkanExampleBase
 	float avg_fps	= 0.0f;
 	float total_fps = 0.0f;
 	int num_frames	= 0;
+
+	// Individual timing data
+	struct
+	{
+		std::vector<float> recv_swapchain_times_total;
+		std::vector<float> send_cameradata_time;
+		std::vector<float> alpha_add_time;
+		std::vector<float> copy_into_swapchain_time;
+		std::vector<float> drawtime; // net frame time
+		std::vector<float> mbps_total_bandwidth;
+		std::vector<float> fps;
+	} timers;
+
+	struct
+	{
+		float mbps_left;
+		float mbps_right;
+		float recv_swapchain_time1;
+		float recv_swapchain_time2;
+		timeval recv_swapchain_image1_start_time;
+		timeval recv_swapchain_image2_start_time;
+		timeval send_cameradata_time;
+	} tmp_start_timers;
 
 	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
 	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];

@@ -20,7 +20,6 @@
         Vulkan glTF scene class
 */
 
-pthread_mutex_t gpu_map_lock;
 
 VulkanglTFScene::~VulkanglTFScene()
 {
@@ -693,16 +692,27 @@ void VulkanExample::setup_multiview()
 
 void *receive_swapchain_image(void *devicerenderer)
 {
-	VulkanExample *ve = (VulkanExample *) devicerenderer;
-	//printf("Calling recv swap image on %d\n", ve->active_serverimage_index);
-
-	uint32_t idx = 0;
-
+	VulkanExample *ve					= (VulkanExample *) devicerenderer;
+	uint32_t idx						= 0;
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
+	timeval start;
+	timeval end;
+	gettimeofday(&start, nullptr);
+
 	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
-	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
+
+	gettimeofday(&end, nullptr);
+
+	float timediff = vku::time_difference(start, end);
+	float megabits = server_read * 8 / (1e6);
+
+	ve->tmp_start_timers.mbps_left = megabits / (timediff / 1000.0f);
+
+	timeval recv_swapchain_image1_end_time;
+	gettimeofday(&recv_swapchain_image1_end_time, nullptr);
+	ve->tmp_start_timers.recv_swapchain_time1 = vku::time_difference(ve->tmp_start_timers.recv_swapchain_image1_start_time, recv_swapchain_image1_end_time);
 
 	return nullptr;
 }
@@ -710,22 +720,35 @@ void *receive_swapchain_image(void *devicerenderer)
 void *receive_swapchain_image2(void *devicerenderer)
 {
 	VulkanExample *ve = (VulkanExample *) devicerenderer;
-	//printf("Calling recv swap image on %d\n", ve->active_serverimage_index);
 
-	uint32_t idx = 1;	
+	uint32_t idx = 1;
 
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
+	timeval start;
+	timeval end;
+	gettimeofday(&start, nullptr);
+
 	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_network_read, MSG_WAITALL);
-	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
+
+	gettimeofday(&end, nullptr);
+
+	float timediff = vku::time_difference(start, end);
+	float megabits = server_read * 8 / (1e6);
+
+	ve->tmp_start_timers.mbps_left = megabits / (timediff / 1000.0f);
+
+	timeval recv_swapchain_image2_end_time;
+	gettimeofday(&recv_swapchain_image2_end_time, nullptr);
+	ve->tmp_start_timers.recv_swapchain_time2 = vku::time_difference(ve->tmp_start_timers.recv_swapchain_image2_start_time, recv_swapchain_image2_end_time);
 
 	return nullptr;
 }
 
 void *send_camera_data(void *devicerenderer)
 {
-	VulkanExample *ve = (VulkanExample*) devicerenderer;
+	VulkanExample *ve = (VulkanExample *) devicerenderer;
 
 	// Send an array with camera pos and rot back to server
 	float camera_data[6] = {
@@ -738,6 +761,10 @@ void *send_camera_data(void *devicerenderer)
 	};
 
 	send(ve->client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
+
+	timeval send_cameradata_time_end;
+	gettimeofday(&send_cameradata_time_end, nullptr);
+	ve->timers.send_cameradata_time.push_back(vku::time_difference(ve->tmp_start_timers.send_cameradata_time, send_cameradata_time_end));
 
 	return nullptr;
 }
@@ -1431,11 +1458,6 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
-	if(pthread_mutex_init(&gpu_map_lock, nullptr) != 0)
-	{
-		printf("mutex initialization unsuccessful\n");
-		return;
-	}
 	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
@@ -1459,26 +1481,17 @@ void VulkanExample::prepare()
 
 void VulkanExample::draw()
 {
-	std::string filename = "/sdcard/gltf_client.log";
-	std::ofstream file(filename, std::ios::out | std::ios::binary);
-	file << "DRAW CALLED\n";
-	file.close();
-
 	VulkanExampleBase::prepareFrame();
 
-	active_serverimage_index			 = 0;
+	// Create timers for individual threads and receive the swapchain images
+	gettimeofday(&tmp_start_timers.recv_swapchain_image1_start_time, nullptr);
 	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
 
-	active_serverimage_index			  = 1;
+	gettimeofday(&tmp_start_timers.recv_swapchain_image2_start_time, nullptr);
 	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
-
-	buildCommandBuffers();
-
-	
 
 
 	// Multiview offscreen render
-
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
 	VK_CHECK_RESULT(vkResetFences(device, 1, &multiview_pass.wait_fences[currentBuffer]));
 	submitInfo.pWaitSemaphores	  = &semaphores.presentComplete;
@@ -1486,7 +1499,6 @@ void VulkanExample::draw()
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers	  = &multiview_pass.command_buffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, multiview_pass.wait_fences[currentBuffer]));
-
 
 	// View display
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX));
@@ -1501,11 +1513,21 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.right_receive_image, nullptr);
 	pthread_join(vk_pthread.left_receive_image, nullptr);
 
+
+	timers.recv_swapchain_times_total.push_back(std::min(tmp_start_timers.recv_swapchain_time1, tmp_start_timers.recv_swapchain_time2));
+	timers.mbps_total_bandwidth.push_back(tmp_start_timers.mbps_left + tmp_start_timers.mbps_right);
+
+	// Create timer for sending the camera data at this time, and also the thread
+	gettimeofday(&tmp_start_timers.send_cameradata_time, nullptr);
 	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
 
-
+	// Add back in alpha value
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+
+	timeval alpha_add_start_time;
+	timeval alpha_add_end_time;
+	gettimeofday(&alpha_add_start_time, nullptr);
 
 	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
 	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
@@ -1515,11 +1537,15 @@ void VulkanExample::draw()
 	vku::rgb_to_rgba(right_servbuf, (uint8_t *) server_image[1].data); //, num_bytes_for_image);
 	vkUnmapMemory(device, server_image[1].buffer.memory);
 
+	gettimeofday(&alpha_add_end_time, nullptr);
+	timers.alpha_add_time.push_back(vku::time_difference(alpha_add_start_time, alpha_add_end_time));
+
+	// Now the server images can be copied into the client's swapchain
+	timeval copy_swapchain_start_time;
+	timeval copy_swapchain_end_time;
+	gettimeofday(&copy_swapchain_start_time, nullptr);
 
 	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
-
-	//VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-	//VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[currentBuffer], &cmdBufInfo));
 
 
 	// Transition swapchain image to transfer
@@ -1601,6 +1627,7 @@ void VulkanExample::draw()
 						   1, &right_copy_region);
 
 
+
 	// Transition swapchain image back to present src khr
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
 								 swapChain.images[currentBuffer],
@@ -1615,23 +1642,90 @@ void VulkanExample::draw()
 
 	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 
+	gettimeofday(&copy_swapchain_end_time, nullptr);
+
+	timers.copy_into_swapchain_time.push_back(vku::time_difference(copy_swapchain_start_time, copy_swapchain_end_time));
+
 	// Submit frame to be drawn
 	VulkanExampleBase::submitFrame();
 
 	pthread_join(vk_pthread.send_thread, nullptr);
 
 	total_fps += lastFPS;
+	num_frames++;
 	avg_fps = total_fps / num_frames;
-	printf("%f ms/frame (%f fps)\n", (1000.0f / flastFPS), flastFPS);
 }
 
 void VulkanExample::render()
 {
+	timeval tStart;
+	timeval tEnd;
+	gettimeofday(&tStart, nullptr);
+
 	draw();
 
 	if(camera.updated)
 	{
 		updateUniformBuffers();
+	}
+
+	gettimeofday(&tEnd, nullptr);
+
+	float ms_per_frame = vku::time_difference(tStart, tEnd);
+	float fps		   = 1000.0f / ms_per_frame;
+	timers.drawtime.push_back(ms_per_frame);
+	timers.fps.push_back(fps);
+
+	uint32_t timer_idx = timers.recv_swapchain_times_total.size() - 1;
+
+	if(timers.copy_into_swapchain_time.size() == 1024)
+	{
+		int len = 1024 * sizeof(float) * 7;
+		float databuf[len];
+		int databufidx = 0;
+		for(uint32_t i = 0; i < timers.recv_swapchain_times_total.size(); i++)
+		{
+			databuf[databufidx] = timers.recv_swapchain_times_total[i];
+			databufidx++;
+		}
+
+		for(uint32_t i = 0; i < timers.send_cameradata_time.size(); i++)
+		{
+			databuf[databufidx] = timers.send_cameradata_time[i];
+			databufidx++;
+		}
+
+		for(uint32_t i = 0; i < timers.alpha_add_time.size(); i++)
+		{
+			databuf[databufidx] = timers.alpha_add_time[i];
+			databufidx++;
+		}
+
+		for(uint32_t i = 0; i < timers.copy_into_swapchain_time.size(); i++)
+		{
+			databuf[databufidx] = timers.copy_into_swapchain_time[i];
+			databufidx++;
+		}
+
+		for(uint32_t i = 0; i < timers.drawtime.size(); i++)
+		{
+			databuf[databufidx] = timers.drawtime[i];
+			databufidx++;
+		}
+
+		for(uint32_t i = 0; i < timers.fps.size(); i++)
+		{
+			databuf[databufidx] = timers.fps[i];
+			databufidx++;
+		}
+
+		for(uint32_t i = 0; i < timers.mbps_total_bandwidth.size(); i++)
+		{
+			databuf[databufidx] = timers.mbps_total_bandwidth[i];
+			databufidx++;
+		}
+
+		send(client.socket_fd[0], databuf, len, 0);
 	}
 }
 

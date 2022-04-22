@@ -243,6 +243,8 @@ class VulkanExample : public VulkanExampleBase
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
 
+	int numframes = 0;
+
 
 	// Camera and view properties
 	float eyeSeparation		= 0.08f;
