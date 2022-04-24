@@ -14,7 +14,6 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
-#include <sys/time.h>
 
 #include "gltfscenerendering_server.h"
 
@@ -1305,8 +1304,14 @@ void *send_image_to_client(void *hostrenderer)
 	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
+	timeval start_alpha_remove;
+	timeval end_alpha_remove;
+	gettimeofday(&start_alpha_remove, nullptr);
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) ve->lefteye_fovea.data, sendpacket, input_framesize_bytes);
+	gettimeofday(&end_alpha_remove, nullptr);
+	
+	ve->tmp_timers.left_remove_alpha_time = vku::time_difference(start_alpha_remove, end_alpha_remove);
 
 	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
 
@@ -1321,8 +1326,14 @@ void *send_image_to_client2(void *hostrenderer)
 	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
+	timeval start_alpha_remove;
+	timeval end_alpha_remove;
+	gettimeofday(&start_alpha_remove, nullptr);
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) ve->righteye_fovea.data, sendpacket, input_framesize_bytes);
+	gettimeofday(&end_alpha_remove, nullptr);
+	
+	ve->tmp_timers.right_remove_alpha_time = vku::time_difference(start_alpha_remove, end_alpha_remove);
 
 	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
 
@@ -1415,6 +1426,8 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.left_send_image, nullptr);
 	pthread_join(vk_pthread.right_send_image, nullptr);
 
+	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
+
 	float camera_buf[6];
 
 	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
@@ -1431,12 +1444,11 @@ void VulkanExample::draw()
 
 		std::string filename = "CLIENTDATA.tsv";
 		std::ofstream file(filename, std::ios::out | std::ios::binary);
-		file << "framenum\trecvswapchain\tsendcamera\talphaadd\tcopyintoswap\tnetframetime\tfps\tmbps\n";
+		file << "recvswapchain\tsendcamera\talphaadd\tcopyintoswap\tnetframetime\tfps\tmbps\n";
 
 		for(uint32_t i = 1; i < 1000; i++)
 		{
-			std::string datapointstr = std::to_string(i) + "\t" +
-									   std::to_string(databuf[i]) + "\t" +
+			std::string datapointstr = std::to_string(databuf[i]) + "\t" +
 									   std::to_string(databuf[i + 1024 * 1]) + "\t" +
 									   std::to_string(databuf[i + 1024 * 2]) + "\t" +
 									   std::to_string(databuf[i + 1024 * 3]) + "\t" +
@@ -1452,12 +1464,12 @@ void VulkanExample::draw()
 		// Write server data
 		filename = "SERVERDATA.tsv";
 		std::ofstream file2(filename, std::ios::out | std::ios::binary);
-		file2 << "framenum\tdrawtime\tcopytime\n";
+		file2 << "drawtime\talpharemove\tcopytime\n";
 
 		for(uint32_t i = 1; i < 1000; i++)
 		{
-			std::string datapointstr = std::to_string(i) + "\t" +
-									   std::to_string(timers.drawtime[i]) + "\t" +
+			std::string datapointstr = std::to_string(timers.drawtime[i]) + "\t" +
+									   std::to_string(timers.remove_alpha_time[i]) + "\t" +
 									   std::to_string(timers.copy_image_time[i]) + "\n";
 
 			file2 << datapointstr;

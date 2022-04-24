@@ -14,6 +14,9 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+#include <sys/time.h>
+
+
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYGLTF_NO_STB_IMAGE_WRITE
@@ -41,8 +44,8 @@ const uint32_t CLIENTWIDTH	= 2400;
 const uint32_t CLIENTHEIGHT = 1080;
 
 // Possibly temp offloaded rendering attributes
-const uint32_t FOVEAWIDTH  = 320;
-const uint32_t FOVEAHEIGHT = 240;
+const uint32_t FOVEAWIDTH  = 512;
+const uint32_t FOVEAHEIGHT = 512;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
@@ -239,7 +242,14 @@ class VulkanExample : public VulkanExampleBase
 	{
 		std::vector<float> drawtime;
 		std::vector<float> copy_image_time;
+		std::vector<float> remove_alpha_time;
 	} timers;
+
+	struct
+	{
+		float left_remove_alpha_time;
+		float right_remove_alpha_time;
+	} tmp_timers;
 
 
 	struct
