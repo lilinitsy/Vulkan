@@ -237,6 +237,13 @@ class VulkanExample : public VulkanExampleBase
 
 	struct
 	{
+		std::vector<float> drawtime;
+		std::vector<float> copy_image_time;
+	} timers;
+
+
+	struct
+	{
 		pthread_t left_send_image;
 		pthread_t right_send_image;
 	} vk_pthread;

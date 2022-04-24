@@ -139,6 +139,11 @@ namespace vku
 			out[i + 3] = 255;
 		}
 	}
+
+	float time_difference(timeval start, timeval end)
+	{
+		return ((end.tv_sec - start.tv_sec) * 1000.0f) + ((end.tv_usec - start.tv_usec) / 1000.0f);
+	}
 } // namespace vku
 
 #endif

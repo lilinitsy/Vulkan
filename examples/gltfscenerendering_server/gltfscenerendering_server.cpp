@@ -14,7 +14,7 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
-#include <omp.h>
+#include <sys/time.h>
 
 #include "gltfscenerendering_server.h"
 
@@ -697,9 +697,9 @@ void VulkanExample::setup_multiview()
 
 void VulkanExample::buildCommandBuffers()
 {
-	int32_t left_mid_boundary 	= CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
-	int32_t top_boundary		= CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
-	int32_t bottom_boundary 	= CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
+	int32_t left_mid_boundary = CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
+	int32_t top_boundary	  = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary	  = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
 
 	// View display rendering
 	{
@@ -728,7 +728,7 @@ void VulkanExample::buildCommandBuffers()
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
 			//VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
 			VkRect2D scissor = vks::initializers::rect2D(FOVEAWIDTH, FOVEAHEIGHT, left_mid_boundary, top_boundary);
-		
+
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
@@ -740,7 +740,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Right eye
-			viewport.x		 = (float) width / 2.0f;
+			viewport.x = (float) width / 2.0f;
 			scissor.offset.x += width / 2.0f;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
@@ -1308,11 +1308,7 @@ void *send_image_to_client(void *hostrenderer)
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) ve->lefteye_fovea.data, sendpacket, input_framesize_bytes);
 
-	//std::chrono::_V2::system_clock::time_point start = std::chrono::high_resolution_clock::now();
 	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
-	//float timediff = std::chrono::duration<double, std::milli>(std::chrono::high_resolution_clock::now() - start).count();
-
-	//printf("timediff on port %d: %f\n", PORT[idx], timediff);
 
 	return nullptr;
 }
@@ -1327,6 +1323,7 @@ void *send_image_to_client2(void *hostrenderer)
 
 	uint8_t sendpacket[output_framesize_bytes];
 	vku::rgba_to_rgb((uint8_t *) ve->righteye_fovea.data, sendpacket, input_framesize_bytes);
+
 	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
 
 
@@ -1335,13 +1332,14 @@ void *send_image_to_client2(void *hostrenderer)
 
 void VulkanExample::draw()
 {
-	VulkanExampleBase::prepareFrame();
-	//printf("Current buffer: %d\n", currentBuffer);
+	timeval drawstarttime;
+	timeval drawendtime;
+	gettimeofday(&drawstarttime, nullptr);
 
-	buildCommandBuffers();
+	VulkanExampleBase::prepareFrame();
+
 
 	// Multiview offscreen render
-
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
 	VK_CHECK_RESULT(vkResetFences(device, 1, &multiview_pass.wait_fences[currentBuffer]));
 	submitInfo.pWaitSemaphores	  = &semaphores.presentComplete;
@@ -1371,7 +1369,6 @@ void VulkanExample::draw()
 		.pImageIndices		= &currentBuffer,
 	};
 
-	//vkQueuePresentKHR(queue, &present_info);
 
 	VulkanExampleBase::submitFrame();
 
@@ -1398,15 +1395,19 @@ void VulkanExample::draw()
 		.z = 0,
 	};
 
+	gettimeofday(&drawendtime, nullptr);
+	timers.drawtime.push_back(vku::time_difference(drawstarttime, drawendtime));
+
+	timeval copystarttime;
+	timeval copyendtime;
+	gettimeofday(&copystarttime, nullptr);
+
 	// Now copy the image packet back; Could probably copy in parallel...
 	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
 	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
 
-	//#pragma omp parallel
-	//{
-	//	send_image_to_client(lefteye_fovea, 0);
-	//	send_image_to_client(righteye_fovea, 1);
-	//}
+	gettimeofday(&copyendtime, nullptr);
+	timers.copy_image_time.push_back(vku::time_difference(copystarttime, copyendtime));
 
 	int left_image_send	 = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
@@ -1423,15 +1424,16 @@ void VulkanExample::draw()
 
 	if(numframes == 1024)
 	{
+		// Write client data
 		int len = 1024 * sizeof(float) * 7;
 		float databuf[len];
 		int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
 
-		std::string filename = "DATA.tsv";
+		std::string filename = "CLIENTDATA.tsv";
 		std::ofstream file(filename, std::ios::out | std::ios::binary);
 		file << "framenum\trecvswapchain\tsendcamera\talphaadd\tcopyintoswap\tnetframetime\tfps\tmbps\n";
 
-		for(uint32_t i = 0; i < 1024; i++)
+		for(uint32_t i = 1; i < 1000; i++)
 		{
 			std::string datapointstr = std::to_string(i) + "\t" +
 									   std::to_string(databuf[i]) + "\t" +
@@ -1440,12 +1442,28 @@ void VulkanExample::draw()
 									   std::to_string(databuf[i + 1024 * 3]) + "\t" +
 									   std::to_string(databuf[i + 1024 * 4]) + "\t" +
 									   std::to_string(databuf[i + 1024 * 5]) + "\t" +
-									   std::to_string(databuf[i + 1024 * 6]) + "\t\n";
+									   std::to_string(databuf[i + 1024 * 6]) + "\n";
 
 			file << datapointstr;
 		}
 
 		file.close();
+
+		// Write server data
+		filename = "SERVERDATA.tsv";
+		std::ofstream file2(filename, std::ios::out | std::ios::binary);
+		file2 << "framenum\tdrawtime\tcopytime\n";
+
+		for(uint32_t i = 1; i < 1000; i++)
+		{
+			std::string datapointstr = std::to_string(i) + "\t" +
+									   std::to_string(timers.drawtime[i]) + "\t" +
+									   std::to_string(timers.copy_image_time[i]) + "\n";
+
+			file2 << datapointstr;
+		}
+
+		file2.close();
 	}
 
 
