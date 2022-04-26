@@ -694,14 +694,13 @@ void *receive_swapchain_image(void *devicerenderer)
 {
 	VulkanExample *ve					= (VulkanExample *) devicerenderer;
 	uint32_t idx						= 0;
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval start;
 	timeval end;
 	gettimeofday(&start, nullptr);
 
-	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_for_image, MSG_WAITALL);
 
 	gettimeofday(&end, nullptr);
 
@@ -723,14 +722,13 @@ void *receive_swapchain_image2(void *devicerenderer)
 
 	uint32_t idx = 1;
 
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval start;
 	timeval end;
 	gettimeofday(&start, nullptr);
 
-	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_for_image, MSG_WAITALL);
 
 	gettimeofday(&end, nullptr);
 
@@ -824,47 +822,6 @@ void VulkanExample::buildCommandBuffers()
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
 
-			// Left eye
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-
-			// Right eye
-			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
-
-
-			viewport.x = (float) width / 2.0f;
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
-
-			scissor_left_right.offset.x += width / 2.0f;
-			scissor_left_left.offset.x += width / 2.0f;
-			scissor_left_bottom.offset.x += width / 2.0f;
-			scissor_left_top.offset.x += width / 2.0f;
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
@@ -914,7 +871,6 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdBindDescriptorSets(multiview_pass.command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.multiview, 0, 1, &descriptor_sets.multiview, 0, nullptr);
 
 			// POI: Draw the glTF scene
-			glTFScene.draw(multiview_pass.command_buffers[i], pipeline_layouts.multiview);
 
 			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
@@ -1522,7 +1478,6 @@ void VulkanExample::draw()
 	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
 
 	// Add back in alpha value
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval alpha_add_start_time;
@@ -1530,11 +1485,11 @@ void VulkanExample::draw()
 	gettimeofday(&alpha_add_start_time, nullptr);
 
 	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
-	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
+	memcpy(server_image[0].data, left_servbuf, num_bytes_for_image);
 	vkUnmapMemory(device, server_image[0].buffer.memory);
 
 	vkMapMemory(device, server_image[1].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[1].data);
-	vku::rgb_to_rgba(right_servbuf, (uint8_t *) server_image[1].data); //, num_bytes_for_image);
+	memcpy(server_image[1].data, right_servbuf, num_bytes_for_image);
 	vkUnmapMemory(device, server_image[1].buffer.memory);
 
 	gettimeofday(&alpha_add_end_time, nullptr);

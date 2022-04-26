@@ -725,8 +725,7 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
-			//VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
-			VkRect2D scissor = vks::initializers::rect2D(FOVEAWIDTH, FOVEAHEIGHT, left_mid_boundary, top_boundary);
+			VkRect2D scissor	= vks::initializers::rect2D(width / 2.0f, height, 0, 0);
 
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
@@ -1301,19 +1300,18 @@ void *send_image_to_client(void *hostrenderer)
 	VulkanExample *ve = (VulkanExample *) hostrenderer;
 
 	uint32_t idx				  = 0;
-	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval start_alpha_remove;
 	timeval end_alpha_remove;
 	gettimeofday(&start_alpha_remove, nullptr);
-	uint8_t sendpacket[output_framesize_bytes];
-	vku::rgba_to_rgb((uint8_t *) ve->lefteye_fovea.data, sendpacket, input_framesize_bytes);
+	uint8_t sendpacket[input_framesize_bytes];
+	memcpy((void*) sendpacket, ve->lefteye_fovea.data, input_framesize_bytes);
 	gettimeofday(&end_alpha_remove, nullptr);
 	
 	ve->tmp_timers.left_remove_alpha_time = vku::time_difference(start_alpha_remove, end_alpha_remove);
 
-	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
+	send(ve->server.client_fd[idx], sendpacket, input_framesize_bytes, 0);
 
 	return nullptr;
 }
@@ -1323,19 +1321,20 @@ void *send_image_to_client2(void *hostrenderer)
 	VulkanExample *ve = (VulkanExample *) hostrenderer;
 
 	uint32_t idx				  = 1;
-	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval start_alpha_remove;
 	timeval end_alpha_remove;
 	gettimeofday(&start_alpha_remove, nullptr);
-	uint8_t sendpacket[output_framesize_bytes];
-	vku::rgba_to_rgb((uint8_t *) ve->righteye_fovea.data, sendpacket, input_framesize_bytes);
+	uint8_t sendpacket[input_framesize_bytes];
+	memcpy((void*) sendpacket, ve->righteye_fovea.data, input_framesize_bytes);
+	gettimeofday(&end_alpha_remove, nullptr);
+
 	gettimeofday(&end_alpha_remove, nullptr);
 	
 	ve->tmp_timers.right_remove_alpha_time = vku::time_difference(start_alpha_remove, end_alpha_remove);
 
-	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
+	send(ve->server.client_fd[idx], sendpacket, input_framesize_bytes, 0);
 
 
 	return nullptr;
