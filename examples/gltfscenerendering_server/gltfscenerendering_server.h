@@ -44,8 +44,8 @@ const uint32_t CLIENTWIDTH	= 2400;
 const uint32_t CLIENTHEIGHT = 1080;
 
 // Possibly temp offloaded rendering attributes
-const uint32_t FOVEAWIDTH  = 512;
-const uint32_t FOVEAHEIGHT = 512;
+const uint32_t FOVEAWIDTH  = 320;
+const uint32_t FOVEAHEIGHT = 240;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
