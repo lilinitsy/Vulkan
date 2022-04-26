@@ -42,8 +42,8 @@ const uint32_t DOWN_SWIDTH	= 1600;
 const uint32_t DOWN_SHEIGHT = 720;
 
 // Possibly temp offloaded rendering attributes
-const uint32_t FOVEAWIDTH  = 320;
-const uint32_t FOVEAHEIGHT = 240;
+const uint32_t FOVEAWIDTH  = 512;
+const uint32_t FOVEAHEIGHT = 512;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
@@ -282,8 +282,8 @@ class VulkanExample : public VulkanExampleBase
 		timeval send_cameradata_time;
 	} tmp_start_timers;
 
-	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
-	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
+	//uint8_t servbuf[FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t)];
+	uint8_t servbuf[2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t)];
 
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
