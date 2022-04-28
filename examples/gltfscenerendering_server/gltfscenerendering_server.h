@@ -45,7 +45,7 @@ const uint32_t CLIENTHEIGHT = 1080;
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 1200;
-const uint32_t FOVEAHEIGHT = 540;
+const uint32_t FOVEAHEIGHT = 720;
 
 
 
