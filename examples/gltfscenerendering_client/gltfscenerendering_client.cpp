@@ -694,14 +694,13 @@ void *receive_swapchain_image(void *devicerenderer)
 {
 	VulkanExample *ve					= (VulkanExample *) devicerenderer;
 	uint32_t idx						= 0;
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval start;
 	timeval end;
 	gettimeofday(&start, nullptr);
 
-	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_for_image, MSG_WAITALL);
 
 	gettimeofday(&end, nullptr);
 
@@ -723,14 +722,13 @@ void *receive_swapchain_image2(void *devicerenderer)
 
 	uint32_t idx = 1;
 
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval start;
 	timeval end;
 	gettimeofday(&start, nullptr);
 
-	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_network_read, MSG_WAITALL);
+	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_for_image, MSG_WAITALL);
 
 	gettimeofday(&end, nullptr);
 
@@ -1522,7 +1520,6 @@ void VulkanExample::draw()
 	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
 
 	// Add back in alpha value
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 
 	timeval alpha_add_start_time;
@@ -1530,11 +1527,11 @@ void VulkanExample::draw()
 	gettimeofday(&alpha_add_start_time, nullptr);
 
 	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
-	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
+	memcpy(server_image[0].data, left_servbuf, num_bytes_for_image);
 	vkUnmapMemory(device, server_image[0].buffer.memory);
 
 	vkMapMemory(device, server_image[1].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[1].data);
-	vku::rgb_to_rgba(right_servbuf, (uint8_t *) server_image[1].data); //, num_bytes_for_image);
+	memcpy(server_image[1].data, right_servbuf, num_bytes_for_image);
 	vkUnmapMemory(device, server_image[1].buffer.memory);
 
 	gettimeofday(&alpha_add_end_time, nullptr);
