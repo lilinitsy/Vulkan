@@ -714,13 +714,6 @@ void *receive_swapchain_image(void *devicerenderer)
 	gettimeofday(&recv_swapchain_image1_end_time, nullptr);
 	ve->tmp_start_timers.recv_swapchain_time1 = vku::time_difference(ve->tmp_start_timers.recv_swapchain_image1_start_time, recv_swapchain_image1_end_time);
 	
-	timeval alpha_add_start_time;
-	timeval alpha_add_end_time;
-	gettimeofday(&alpha_add_start_time, nullptr);
-	vku::rgb_to_rgba(ve->servbuf, (uint8_t *) ve->server_image.data); //, num_bytes_for_image);
-	gettimeofday(&alpha_add_end_time, nullptr);
-
-	ve->tmp_start_timers.alpha_add_left = vku::time_difference(alpha_add_start_time, alpha_add_end_time);
 
 	return nullptr;
 }
@@ -750,15 +743,6 @@ void *receive_swapchain_image2(void *devicerenderer)
 	timeval recv_swapchain_image2_end_time;
 	gettimeofday(&recv_swapchain_image2_end_time, nullptr);
 	ve->tmp_start_timers.recv_swapchain_time2 = vku::time_difference(ve->tmp_start_timers.recv_swapchain_image2_start_time, recv_swapchain_image2_end_time);
-
-
-	timeval alpha_add_start_time;
-	timeval alpha_add_end_time;
-	gettimeofday(&alpha_add_start_time, nullptr);
-	vku::rgb_to_rgba(ve->servbuf + num_bytes_network_read, (uint8_t *) ve->server_image.data + num_bytes_for_image); //, num_bytes_for_image);
-	gettimeofday(&alpha_add_end_time, nullptr);
-
-	ve->tmp_start_timers.alpha_add_right = vku::time_difference(alpha_add_start_time, alpha_add_end_time);
 
 
 	return nullptr;
@@ -1490,7 +1474,8 @@ void VulkanExample::prepare()
 		VK_CHECK_RESULT(vkCreateFence(device, &multiview_fence_ci, nullptr, &multiview_pass.wait_fences[i]));
 	}
 
-
+	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image.data);
 	prepared = true;
 }
 
@@ -1499,7 +1484,6 @@ void VulkanExample::draw()
 	VulkanExampleBase::prepareFrame();
 	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	vkMapMemory(device, server_image.buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image.data);
 
 	// Create timers for individual threads and receive the swapchain images
 	gettimeofday(&tmp_start_timers.recv_swapchain_image1_start_time, nullptr);
@@ -1530,20 +1514,28 @@ void VulkanExample::draw()
 	// Join after all the normal client rendering is done, at the latest point possible
 	pthread_join(vk_pthread.right_receive_image, nullptr);
 	pthread_join(vk_pthread.left_receive_image, nullptr);
+	timers.mbps_total_bandwidth.push_back(tmp_start_timers.mbps_left + tmp_start_timers.mbps_right);
+
+	timeval alpha_add_start_time;
+	timeval alpha_add_end_time;
+	gettimeofday(&alpha_add_start_time, nullptr);
+	vku::rgb_to_rgba(servbuf, (uint8_t *) server_image.data); //, num_bytes_for_image);
+	vku::rgb_to_rgba(servbuf + num_bytes_network_read, (uint8_t *) server_image.data + num_bytes_for_image); //, num_bytes_for_image);
+	gettimeofday(&alpha_add_end_time, nullptr);
+	timers.alpha_add_time.push_back(vku::time_difference(alpha_add_start_time, alpha_add_end_time));
+
+
 
 	// Then unmap server memory
-	vkUnmapMemory(device, server_image.buffer.memory);
+	//vkUnmapMemory(device, server_image.buffer.memory);
 
 
 	timers.recv_swapchain_times_total.push_back(std::min(tmp_start_timers.recv_swapchain_time1, tmp_start_timers.recv_swapchain_time2));
-	timers.mbps_total_bandwidth.push_back(tmp_start_timers.mbps_left + tmp_start_timers.mbps_right);
 
 	// Create timer for sending the camera data at this time, and also the thread
 	gettimeofday(&tmp_start_timers.send_cameradata_time, nullptr);
 	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
 	
-	// Put in the longer time
-	timers.alpha_add_time.push_back(std::max(tmp_start_timers.alpha_add_left, tmp_start_timers.alpha_add_right));
 
 	// Now the server images can be copied into the client's swapchain
 	timeval copy_swapchain_start_time;
