@@ -14,6 +14,8 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+#include <sys/time.h>
+
 #include "gltfscenerendering_client.h"
 
 /*
@@ -691,59 +693,12 @@ void VulkanExample::setup_multiview()
 	}
 }
 
-void *receive_swapchain_image(void *devicerenderer)
-{
-	VulkanExample *ve = (VulkanExample *) devicerenderer;
-	//printf("Calling recv swap image on %d\n", ve->active_serverimage_index);
-
-	uint32_t idx = 0;
-
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-
-	int server_read = recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
-	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
-
-	return nullptr;
-}
-
-void *receive_swapchain_image2(void *devicerenderer)
-{
-	VulkanExample *ve = (VulkanExample *) devicerenderer;
-	//printf("Calling recv swap image on %d\n", ve->active_serverimage_index);
-
-	uint32_t idx = 1;	
-
-	VkDeviceSize num_bytes_network_read = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	VkDeviceSize num_bytes_for_image	= FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-
-	int server_read = recv(ve->client.socket_fd[idx], ve->right_servbuf, num_bytes_network_read, MSG_WAITALL);
-	printf("%d received server image buffer on port %d\n", idx, PORT[idx]);
-
-	return nullptr;
-}
-
-void *send_camera_data(void *devicerenderer)
-{
-	VulkanExample *ve = (VulkanExample*) devicerenderer;
-
-	// Send an array with camera pos and rot back to server
-	float camera_data[6] = {
-		ve->camera.position.x,
-		ve->camera.position.y,
-		ve->camera.position.z,
-		ve->camera.rotation.x,
-		ve->camera.rotation.y,
-		ve->camera.rotation.z,
-	};
-
-	send(ve->client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
-
-	return nullptr;
-}
 
 void VulkanExample::buildCommandBuffers()
 {
+	int32_t halfwidth = width / 2;
+	int32_t quarterwidth = width / 4;
+
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
@@ -769,28 +724,52 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
+			VkRect2D leftmost_scissor = vks::initializers::rect2D(quarterwidth, height, 0, 0);
+			VkRect2D leftmid_scissor = vks::initializers::rect2D(quarterwidth, height, quarterwidth, 0);
+			VkRect2D rightmid_scissor = vks::initializers::rect2D(quarterwidth, height, halfwidth, 0);
+			VkRect2D rightmost_scissor = vks::initializers::rect2D(quarterwidth, height, halfwidth + quarterwidth, 0);
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			VkRect2D scissor = vks::initializers::rect2D(width / 2, height, 0, 0);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 			// Bind descriptor set
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
 
 			// Left eye
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmost_scissor);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
+			
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmid_scissor);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+			
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmid_scissor);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+			
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmost_scissor);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+		
+		
 			// Right eye
-
-
 			viewport.x = (float) width / 2.0f;
-			scissor.offset.x = width / 2;
+			leftmost_scissor.offset.x += width / 2;
+			leftmid_scissor.offset.x += width / 2;
+			rightmid_scissor.offset.x += width / 2;
+			rightmost_scissor.offset.x += width / 2;
+
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
 
 
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmost_scissor);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+			
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmid_scissor);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+			
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmid_scissor);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+			
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmost_scissor);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
@@ -1390,7 +1369,7 @@ void VulkanExample::prepare()
 		printf("mutex initialization unsuccessful\n");
 		return;
 	}
-	//client.connect_to_server(PORT);
+	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_multiview();
@@ -1448,11 +1427,24 @@ void VulkanExample::draw()
 
 void VulkanExample::render()
 {
+	timeval tstart;
+	timeval tend;
+	gettimeofday(&tstart, nullptr);
 	draw();
 
 	if(camera.updated)
 	{
 		updateUniformBuffers();
+	}
+
+	gettimeofday(&tend, nullptr);
+	ms_per_frames.push_back(vku::time_difference(tstart, tend));
+	printf("Ms per frame: %f\n", ms_per_frames[ms_per_frames.size() - 1]);
+
+	if(ms_per_frames.size() == 2048)
+	{
+		ssize_t nbytes = 2048 * sizeof(float);
+		send(client.socket_fd, ms_per_frames.data(), nbytes, 0);
 	}
 }
 

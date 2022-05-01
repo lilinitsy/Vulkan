@@ -1392,30 +1392,6 @@ void VulkanExample::draw()
 		.y = topleft_eyepoint_y,
 		.z = 0,
 	};
-
-	// Now copy the image packet back; Could probably copy in parallel...
-	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
-	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
-
-	//#pragma omp parallel
-	//{
-	//	send_image_to_client(lefteye_fovea, 0);
-	//	send_image_to_client(righteye_fovea, 1);
-	//}
-
-	int left_image_send	 = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
-	int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
-
-	pthread_join(vk_pthread.left_send_image, nullptr);
-	pthread_join(vk_pthread.right_send_image, nullptr);
-
-	float camera_buf[6];
-
-	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
-	printf("\tCamera data received from client\n");
-	camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
-	camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
-	printf("Framenum: %u\tFPS: %u\n", frameCounter, lastFPS);
 }
 
 /*

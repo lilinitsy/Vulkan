@@ -29,7 +29,7 @@
 #include "vulkanexamplebase.h"
 
 #define ENABLE_VALIDATION true
-const uint32_t PORT[2] = {1234, 1235};
+const uint32_t PORT = 1234;
 
 // Offloaded rendering attributes
 const uint32_t SERVERWIDTH	= 2400; // 512
@@ -231,6 +231,7 @@ class VulkanExample : public VulkanExampleBase
 
 	// Client[0] will be left eye, client[1] will be right eye
 	Client client;
+	std::vector<float> ms_per_frames;
 
 	struct ServerImage
 	{
