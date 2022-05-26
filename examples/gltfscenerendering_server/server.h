@@ -32,7 +32,7 @@ struct Server
 			// define the address struct to be for TCP using this port
 			sockaddr_in address = {
 				.sin_family = AF_INET,
-				.sin_port	= static_cast<in_port_t>(htons((int) PORT[i])),
+				.sin_port   = static_cast<in_port_t>(htons((int) PORT[i])),
 			};
 
 			// bind to socket
