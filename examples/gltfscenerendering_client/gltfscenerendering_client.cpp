@@ -412,7 +412,7 @@ VulkanExample::VulkanExample() :
 	// Enable fragment shading features
 	physical_device_fragmentdensitymap_features = {
 		.sType                                 = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_FEATURES_EXT,
-		.pNext                                 = physical_device_multiview_features,
+		.pNext                                 = &physical_device_multiview_features,
 		.fragmentDensityMap                    = VK_TRUE,
 		.fragmentDensityMapDynamic             = VK_FALSE,
 		.fragmentDensityMapNonSubsampledImages = VK_FALSE,
@@ -626,7 +626,7 @@ void VulkanExample::setup_multiview()
 
 		VkAttachmentReference fragment_density_map_attachment_reference = {
 			.attachment = 2,
-			.layout = VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
+			.layout     = VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
 		};
 
 
@@ -663,11 +663,11 @@ void VulkanExample::setup_multiview()
 		const uint32_t viewmask         = 0b00000011;
 		const uint32_t correlation_mask = 0b00000011;
 
-		
+
 		// Render pass for fragment densitiy map
 		VkRenderPassFragmentDensityMapCreateInfoEXT renderpass_fdm_ci = {
-			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
-			.pNext = nullptr,
+			.sType                        = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
+			.pNext                        = nullptr,
 			.fragmentDensityMapAttachment = fragment_density_map_attachment_reference,
 		};
 
@@ -719,6 +719,8 @@ void VulkanExample::setup_multiview()
 
 void VulkanExample::setup_fragment_density_map()
 {
+	uint32_t multiview_layers = 2;
+
 	VkImageCreateInfo image_ci = {
 		.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
 		.pNext         = nullptr,
@@ -737,25 +739,24 @@ void VulkanExample::setup_fragment_density_map()
 	VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.fragment_density_map.image));
 
 	VkImageSubresourceRange fdm_subresource_range = {
-		.baseMipLevel = 0,
-		.levelCount = 1,
+		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel   = 0,
+		.levelCount     = 1,
 		.baseArrayLayer = 0,
-		.layerCount = multiview_layers,
+		.layerCount     = multiview_layers,
 	};
 
 	VkImageViewCreateInfo image_view_ci = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.pNext = nullptr,
+		.sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext            = nullptr,
 		.flags            = 0,
 		.image            = multiview_pass.fragment_density_map.image,
 		.viewType         = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
 		.format           = VK_FORMAT_R8G8_UNORM,
-		.components = VK_COMPONENT_SWIZZLE_IDENTITY,
 		.subresourceRange = fdm_subresource_range,
 	};
 
 	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multiview_pass.fragment_density_map.view));
-	
 }
 
 
