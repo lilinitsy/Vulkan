@@ -394,19 +394,32 @@ VulkanExample::VulkanExample() :
 	camera.setRotation(glm::vec3(-180.0f, -90.0f, 0.0f));
 	camera.movementSpeed = 4.0f;
 
-	// Multiview setup
 	// Enable extension required for multiview
 	enabledDeviceExtensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
+
+	// VK_KHR_fragment_shading_rate
+	enabledDeviceExtensions.push_back(VK_EXT_FRAGMENT_DENSITY_MAP_EXTENSION_NAME);
 
 	// Reading device properties and features for multiview requires VK_KHR_get_physical_device_properties2 to be enabled
 	enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
-	// Enable required extension features
+	// Enable multiview extension features
 	physical_device_multiview_features = {
 		.sType     = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR,
 		.multiview = VK_TRUE,
 	};
-	deviceCreatepNextChain = &physical_device_multiview_features;
+
+	// Enable fragment shading features
+	physical_device_fragmentdensitymap_features = {
+		.sType                                 = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_DENSITY_MAP_FEATURES_EXT,
+		.pNext                                 = physical_device_multiview_features,
+		.fragmentDensityMap                    = VK_TRUE,
+		.fragmentDensityMapDynamic             = VK_FALSE,
+		.fragmentDensityMapNonSubsampledImages = VK_FALSE,
+	};
+
+
+	deviceCreatepNextChain = &physical_device_fragmentdensitymap_features;
 }
 
 VulkanExample::~VulkanExample()
@@ -453,7 +466,7 @@ void VulkanExample::setup_multiview()
 			.flags         = 0,
 			.imageType     = VK_IMAGE_TYPE_2D,
 			.format        = swapChain.colorFormat,
-			.extent        = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
+			.extent        = {CLIENTWIDTH, CLIENTHEIGHT, 1},
 			.mipLevels     = 1,
 			.arrayLayers   = multiview_layers,
 			.samples       = VK_SAMPLE_COUNT_1_BIT,
@@ -527,7 +540,7 @@ void VulkanExample::setup_multiview()
 			.flags       = 0,
 			.imageType   = VK_IMAGE_TYPE_2D,
 			.format      = depthFormat,
-			.extent      = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
+			.extent      = {CLIENTWIDTH, CLIENTHEIGHT, 1},
 			.mipLevels   = 1,
 			.arrayLayers = multiview_layers,
 			.samples     = VK_SAMPLE_COUNT_1_BIT,
@@ -611,6 +624,11 @@ void VulkanExample::setup_multiview()
 			.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		};
 
+		VkAttachmentReference fragment_density_map_attachment_reference = {
+			.attachment = 2,
+			.layout = VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
+		};
+
 
 		// Subpass dependencies
 		VkSubpassDescription subpass_description = {
@@ -645,10 +663,18 @@ void VulkanExample::setup_multiview()
 		const uint32_t viewmask         = 0b00000011;
 		const uint32_t correlation_mask = 0b00000011;
 
+		
+		// Render pass for fragment densitiy map
+		VkRenderPassFragmentDensityMapCreateInfoEXT renderpass_fdm_ci = {
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
+			.pNext = nullptr,
+			.fragmentDensityMapAttachment = fragment_density_map_attachment_reference,
+		};
+
 		// Multiview renderpass creation
 		VkRenderPassMultiviewCreateInfo renderpass_multiview_ci = {
 			.sType                = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
-			.pNext                = nullptr,
+			.pNext                = &renderpass_fdm_ci,
 			.subpassCount         = 1,
 			.pViewMasks           = &viewmask,
 			.correlationMaskCount = 1,
@@ -673,7 +699,7 @@ void VulkanExample::setup_multiview()
 
 	// Framebuffer creation
 	{
-		VkImageView fbo_attachments[] = {multiview_pass.colour.view, multiview_pass.depth.view};
+		VkImageView fbo_attachments[] = {multiview_pass.colour.view, multiview_pass.depth.view, multiview_pass.fragment_density_map.view};
 
 		VkFramebufferCreateInfo fbo_ci = {
 			.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -689,6 +715,49 @@ void VulkanExample::setup_multiview()
 		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbo_ci, nullptr, &multiview_pass.framebuffer));
 	}
 }
+
+
+void VulkanExample::setup_fragment_density_map()
+{
+	VkImageCreateInfo image_ci = {
+		.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.pNext         = nullptr,
+		.flags         = 0,
+		.imageType     = VK_IMAGE_TYPE_2D,
+		.format        = VK_FORMAT_R8G8_UNORM,
+		.extent        = {CLIENTWIDTH / 32, CLIENTHEIGHT / 32, 1},
+		.mipLevels     = 1,
+		.arrayLayers   = multiview_layers,
+		.samples       = VK_SAMPLE_COUNT_1_BIT,
+		.tiling        = VK_IMAGE_TILING_OPTIMAL,
+		.usage         = VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+	};
+
+	VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.fragment_density_map.image));
+
+	VkImageSubresourceRange fdm_subresource_range = {
+		.baseMipLevel = 0,
+		.levelCount = 1,
+		.baseArrayLayer = 0,
+		.layerCount = multiview_layers,
+	};
+
+	VkImageViewCreateInfo image_view_ci = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext = nullptr,
+		.flags            = 0,
+		.image            = multiview_pass.fragment_density_map.image,
+		.viewType         = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+		.format           = VK_FORMAT_R8G8_UNORM,
+		.components = VK_COMPONENT_SWIZZLE_IDENTITY,
+		.subresourceRange = fdm_subresource_range,
+	};
+
+	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multiview_pass.fragment_density_map.view));
+	
+}
+
 
 void *receive_swapchain_image(void *devicerenderer)
 {
@@ -893,13 +962,13 @@ void VulkanExample::buildCommandBuffers()
 		renderPassBeginInfo.renderPass               = multiview_pass.renderpass;
 		renderPassBeginInfo.renderArea.offset.x      = 0;
 		renderPassBeginInfo.renderArea.offset.y      = 0;
-		renderPassBeginInfo.renderArea.extent.width  = DOWN_SWIDTH;
-		renderPassBeginInfo.renderArea.extent.height = DOWN_SHEIGHT;
+		renderPassBeginInfo.renderArea.extent.width  = CLIENTWIDTH;
+		renderPassBeginInfo.renderArea.extent.height = CLIENTHEIGHT;
 		renderPassBeginInfo.clearValueCount          = 2;
 		renderPassBeginInfo.pClearValues             = clearValues;
 
-		const VkViewport viewport = vks::initializers::viewport((float) DOWN_SWIDTH, (float) DOWN_SHEIGHT, 0.0f, 1.0f);
-		const VkRect2D scissor    = vks::initializers::rect2D(DOWN_SWIDTH, DOWN_SHEIGHT, 0, 0);
+		const VkViewport viewport = vks::initializers::viewport((float) CLIENTWIDTH, (float) CLIENTHEIGHT, 0.0f, 1.0f);
+		const VkRect2D scissor    = vks::initializers::rect2D(CLIENTWIDTH, CLIENTHEIGHT, 0, 0);
 
 		for(int32_t i = 0; i < multiview_pass.command_buffers.size(); ++i)
 		{
@@ -1231,15 +1300,19 @@ void VulkanExample::preparePipelines()
 	std::cout << std::endl;
 
 	VkPhysicalDeviceProperties2KHR device_properties2{};
-	VkPhysicalDeviceMultiviewPropertiesKHR extension_properties{};
-	extension_properties.sType                                              = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES_KHR;
+	VkPhysicalDeviceMultiviewPropertiesKHR multiview_extension_properties{};
+	multiview_extension_properties.sType                                    = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES_KHR;
 	device_properties2.sType                                                = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
-	device_properties2.pNext                                                = &extension_properties;
+	device_properties2.pNext                                                = &multiview_extension_properties;
 	PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
 	vkGetPhysicalDeviceProperties2KHR(physicalDevice, &device_properties2);
 	std::cout << "Multiview properties:" << std::endl;
-	std::cout << "\tmaxMultiviewViewCount = " << extension_properties.maxMultiviewViewCount << std::endl;
-	std::cout << "\tmaxMultiviewInstanceIndex = " << extension_properties.maxMultiviewInstanceIndex << std::endl;
+	std::cout << "\tmaxMultiviewViewCount = " << multiview_extension_properties.maxMultiviewViewCount << std::endl;
+	std::cout << "\tmaxMultiviewInstanceIndex = " << multiview_extension_properties.maxMultiviewInstanceIndex << std::endl;
+
+
+	// Query Support for VK_KHR_fragment_shading_rate
+
 
 
 	// ========================================================================
@@ -1458,9 +1531,10 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
-	client.connect_to_server(PORT);
+	//client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
+	setup_fragment_density_map();
 	setup_multiview();
 	prepareUniformBuffers();
 	setupDescriptors();

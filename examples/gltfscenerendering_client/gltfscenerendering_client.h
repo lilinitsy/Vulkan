@@ -220,6 +220,7 @@ class VulkanExample : public VulkanExampleBase
 	{
 		FrameBufferAttachment colour;
 		FrameBufferAttachment depth;
+		FrameBufferAttachment fragment_density_map;
 		VkFramebuffer framebuffer;
 		VkRenderPass renderpass;
 		VkDescriptorImageInfo descriptor;
@@ -287,7 +288,8 @@ class VulkanExample : public VulkanExampleBase
 
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
-
+	VkPhysicalDeviceFragmentShadingRateFeaturesKHR physical_device_shadingrate_features{};
+	VkPhysicalDeviceFragmentDensityMapFeaturesEXT physical_device_fragmentdensitymap_features{};
 
 	// Camera and view properties
 	float eyeSeparation     = 0.08f;
@@ -314,6 +316,7 @@ class VulkanExample : public VulkanExampleBase
 
 	void setup_multiview();
 	void setup_multisample_target();
+	void setup_fragment_density_map();
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);
