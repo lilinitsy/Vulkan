@@ -45,6 +45,9 @@ const uint32_t DOWN_SHEIGHT = 720;
 const uint32_t FOVEAWIDTH  = 480;
 const uint32_t FOVEAHEIGHT = 272;
 
+// Fragment density map to use
+const std::string FRAGMENT_DENSITY_MAP_PATH = "fdm50x22.jpg";
+
 
 // Contains everything required to render a basic glTF scene in Vulkan
 // This class is heavily simplified (compared to glTF's feature set) but retains

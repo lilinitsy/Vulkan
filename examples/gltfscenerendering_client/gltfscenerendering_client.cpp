@@ -14,6 +14,8 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include "gltfscenerendering_client.h"
 
 /*
@@ -757,6 +759,76 @@ void VulkanExample::setup_fragment_density_map()
 	};
 
 	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multiview_pass.fragment_density_map.view));
+
+	// Load image
+	int fdmwidth;
+	int fdmheight;
+	int fdmchannels;
+	
+	stbi_uc *pixels = stbi_load(FRAGMENT_DENSITY_MAP_PATH.c_str(), &fdmwidth, &fdmheight, &fdmchannels, STBI_grey_alpha);
+	VkDeviceSize texture_size = fdmwidth * fdmheight * 2;
+
+	if(!pixels)
+	{
+		throw std::runtime_error("Could not load texture image");
+	}
+
+	vks::Buffer staging_buffer;
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&staging_buffer, texture_size));
+	
+
+	
+	void *data;
+	vkMapMemory(device, staging_buffer.memory, 0, texture_size, 0, &data);
+	memcpy(data, pixels, texture_size);
+	vkUnmapMemory(device, staging_buffer.memory);
+
+	stbi_image_free(pixels);
+
+	VkExtent3D texextent3D = {
+		.width = (uint32_t) fdmwidth,
+		.height = (uint32_t) fdmheight,
+		.depth = 1,
+	};
+
+	VkCommandBuffer copydata_cmdbuf = vku::begin_command_buffer(device, cmdPool);
+
+	vku::transition_image_layout(device, queue, cmdPool,
+		multiview_pass.fragment_density_map.image,
+		VK_FORMAT_R8G8_UNORM,
+		VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	
+	VkImageSubresourceLayers image_subresource = {
+		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseArrayLayer = 0,
+		.layerCount     = multiview_layers,
+	};
+
+	VkBufferImageCopy copy_region = {
+		.bufferOffset = 0,
+		.bufferRowLength = (uint32_t) fdmwidth,
+		.bufferImageHeight = (uint32_t) fdmheight,
+		.imageSubresource = image_subresource,
+	};
+
+	vkCmdCopyBufferToImage(copydata_cmdbuf,
+		staging_buffer.buffer,
+		multiview_pass.fragment_density_map.image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1, &copy_region);
+
+	vku::transition_image_layout(device, queue, cmdPool,
+		multiview_pass.fragment_density_map.image,
+		VK_FORMAT_R8G8_UNORM,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT);
+	
+	vkDestroyBuffer(device, staging_buffer.buffer, nullptr);
+	vkFreeMemory(device, staging_buffer.memory, nullptr);
 }
 
 
@@ -1445,8 +1517,6 @@ void VulkanExample::create_server_image_buffer()
 {
 	for(uint32_t i = 0; i < 2; i++)
 	{
-
-
 		VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -1532,7 +1602,7 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
-	//client.connect_to_server(PORT);
+	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_fragment_density_map();
