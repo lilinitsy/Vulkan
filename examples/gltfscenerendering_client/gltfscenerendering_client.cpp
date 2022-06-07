@@ -15,8 +15,8 @@
  */
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
 #include "gltfscenerendering_client.h"
+#include "stb_image.h"
 
 /*
         Vulkan glTF scene class
@@ -585,11 +585,12 @@ void VulkanExample::setup_multiview()
 
 	// Multiview Renderpass
 	{
-		VkAttachmentDescription attachments[2];
+		VkAttachmentDescription2KHR attachments[3];
 
 		// Colour attachment
 		attachments[0] = {
-			.flags          = 0,
+			.sType          = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+			.flags          = VK_IMAGE_CREATE_SUBSAMPLED_BIT_EXT,
 			.format         = swapChain.colorFormat,
 			.samples        = VK_SAMPLE_COUNT_1_BIT,
 			.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -600,11 +601,10 @@ void VulkanExample::setup_multiview()
 			.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
 
-
-
 		// Depth attachment
 		attachments[1] = {
-			.flags          = 0,
+			.sType          = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+			.flags          = VK_IMAGE_CREATE_SUBSAMPLED_BIT_EXT,
 			.format         = depthFormat,
 			.samples        = VK_SAMPLE_COUNT_1_BIT,
 			.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -615,17 +615,34 @@ void VulkanExample::setup_multiview()
 			.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		};
 
+		// fdm image
+		attachments[2] = {
+			.sType          = VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2,
+			.flags          = 0, // might need to make this subsampled too?
+			.format         = VK_FORMAT_R8G8_UNORM,
+			.samples        = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout    = VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
+		};
+
 		// Attachment references
-		VkAttachmentReference colour_reference = {
+		VkAttachmentReference2 colour_reference = {
+			.sType      = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2,
 			.attachment = 0,
 			.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		};
 
-		VkAttachmentReference depth_reference = {
+		VkAttachmentReference2 depth_reference = {
+			.sType      = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2,
 			.attachment = 1,
 			.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
 		};
 
+		// Can't be VkAttachmentReference2 because VkRenderPassFragmentDensityMapCreateInfoEXT requires a VkAttachmentReference
 		VkAttachmentReference fragment_density_map_attachment_reference = {
 			.attachment = 2,
 			.layout     = VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
@@ -633,15 +650,18 @@ void VulkanExample::setup_multiview()
 
 
 		// Subpass dependencies
-		VkSubpassDescription subpass_description = {
+		VkSubpassDescription2KHR subpass_description = {
+			.sType                   = VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2,
+			.pNext                   = &fragment_density_map_attachment_reference,
 			.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS,
 			.colorAttachmentCount    = 1,
 			.pColorAttachments       = &colour_reference,
 			.pDepthStencilAttachment = &depth_reference,
 		};
 
-		VkSubpassDependency dependencies[2];
+		VkSubpassDependency2KHR dependencies[2];
 		dependencies[0] = {
+			.sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
 			.srcSubpass      = VK_SUBPASS_EXTERNAL,
 			.dstSubpass      = 0,
 			.srcStageMask    = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
@@ -652,6 +672,7 @@ void VulkanExample::setup_multiview()
 		};
 
 		dependencies[1] = {
+			.sType           = VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2,
 			.srcSubpass      = 0,
 			.dstSubpass      = VK_SUBPASS_EXTERNAL,
 			.srcStageMask    = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -666,7 +687,7 @@ void VulkanExample::setup_multiview()
 		const uint32_t correlation_mask = 0b00000011;
 
 
-		// Render pass for fragment densitiy map
+		// Render pass for fragment density map
 		VkRenderPassFragmentDensityMapCreateInfoEXT renderpass_fdm_ci = {
 			.sType                        = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
 			.pNext                        = nullptr,
@@ -683,12 +704,11 @@ void VulkanExample::setup_multiview()
 			.pCorrelationMasks    = &correlation_mask,
 		};
 
-
-		VkRenderPassCreateInfo renderpass_ci = {
+		VkRenderPassCreateInfo2KHR renderpass_ci = {
 			.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 			.pNext           = &renderpass_multiview_ci,
 			.flags           = 0,
-			.attachmentCount = 2,
+			.attachmentCount = 3,
 			.pAttachments    = attachments,
 			.subpassCount    = 1,
 			.pSubpasses      = &subpass_description,
@@ -696,7 +716,7 @@ void VulkanExample::setup_multiview()
 			.pDependencies   = dependencies,
 		};
 
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderpass_ci, nullptr, &multiview_pass.renderpass));
+		VK_CHECK_RESULT(vkCreateRenderPass2(device, &renderpass_ci, nullptr, &multiview_pass.renderpass));
 	}
 
 	// Framebuffer creation
@@ -714,6 +734,7 @@ void VulkanExample::setup_multiview()
 			.height          = SERVERHEIGHT,
 			.layers          = 1,
 		};
+
 		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbo_ci, nullptr, &multiview_pass.framebuffer));
 	}
 }
@@ -740,6 +761,18 @@ void VulkanExample::setup_fragment_density_map()
 
 	VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.fragment_density_map.image));
 
+	VkMemoryRequirements memory_requirements;
+	vkGetImageMemoryRequirements(device, multiview_pass.fragment_density_map.image, &memory_requirements);
+
+	VkMemoryAllocateInfo memory_ai = {
+		.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize  = memory_requirements.size,
+		.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+	};
+	VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &multiview_pass.fragment_density_map.memory));
+	VK_CHECK_RESULT(vkBindImageMemory(device, multiview_pass.fragment_density_map.image, multiview_pass.fragment_density_map.memory, 0));
+
+
 	VkImageSubresourceRange fdm_subresource_range = {
 		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
 		.baseMipLevel   = 0,
@@ -761,11 +794,16 @@ void VulkanExample::setup_fragment_density_map()
 	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multiview_pass.fragment_density_map.view));
 
 	// Load image
-	int fdmwidth;
-	int fdmheight;
-	int fdmchannels;
-	
-	stbi_uc *pixels = stbi_load(FRAGMENT_DENSITY_MAP_PATH.c_str(), &fdmwidth, &fdmheight, &fdmchannels, STBI_grey_alpha);
+	int fdmwidth    = 50;
+	int fdmheight   = 22;
+	int fdmchannels = 2;
+
+	char *pixels = new char[fdmwidth * fdmheight * fdmchannels];
+	for(size_t i = 0; i < fdmwidth * fdmheight * fdmchannels; i++)
+	{
+		pixels[i] = 128;
+	}
+
 	VkDeviceSize texture_size = fdmwidth * fdmheight * 2;
 
 	if(!pixels)
@@ -778,9 +816,8 @@ void VulkanExample::setup_fragment_density_map()
 		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		&staging_buffer, texture_size));
-	
 
-	
+
 	void *data;
 	vkMapMemory(device, staging_buffer.memory, 0, texture_size, 0, &data);
 	memcpy(data, pixels, texture_size);
@@ -789,19 +826,19 @@ void VulkanExample::setup_fragment_density_map()
 	stbi_image_free(pixels);
 
 	VkExtent3D texextent3D = {
-		.width = (uint32_t) fdmwidth,
+		.width  = (uint32_t) fdmwidth,
 		.height = (uint32_t) fdmheight,
-		.depth = 1,
+		.depth  = 1,
 	};
 
 	VkCommandBuffer copydata_cmdbuf = vku::begin_command_buffer(device, cmdPool);
 
 	vku::transition_image_layout(device, queue, cmdPool,
-		multiview_pass.fragment_density_map.image,
-		VK_FORMAT_R8G8_UNORM,
-		VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	
+	                             multiview_pass.fragment_density_map.image,
+	                             VK_FORMAT_R8G8_UNORM,
+	                             VK_IMAGE_LAYOUT_UNDEFINED,
+	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
 	VkImageSubresourceLayers image_subresource = {
 		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
 		.baseArrayLayer = 0,
@@ -809,24 +846,24 @@ void VulkanExample::setup_fragment_density_map()
 	};
 
 	VkBufferImageCopy copy_region = {
-		.bufferOffset = 0,
-		.bufferRowLength = (uint32_t) fdmwidth,
+		.bufferOffset      = 0,
+		.bufferRowLength   = (uint32_t) fdmwidth,
 		.bufferImageHeight = (uint32_t) fdmheight,
-		.imageSubresource = image_subresource,
+		.imageSubresource  = image_subresource,
 	};
 
 	vkCmdCopyBufferToImage(copydata_cmdbuf,
-		staging_buffer.buffer,
-		multiview_pass.fragment_density_map.image,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		1, &copy_region);
+	                       staging_buffer.buffer,
+	                       multiview_pass.fragment_density_map.image,
+	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	                       1, &copy_region);
 
 	vku::transition_image_layout(device, queue, cmdPool,
-		multiview_pass.fragment_density_map.image,
-		VK_FORMAT_R8G8_UNORM,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT);
-	
+	                             multiview_pass.fragment_density_map.image,
+	                             VK_FORMAT_R8G8_UNORM,
+	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	                             VK_IMAGE_LAYOUT_FRAGMENT_DENSITY_MAP_OPTIMAL_EXT);
+
 	vkDestroyBuffer(device, staging_buffer.buffer, nullptr);
 	vkFreeMemory(device, staging_buffer.memory, nullptr);
 }
@@ -1602,7 +1639,7 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 void VulkanExample::prepare()
 {
-	client.connect_to_server(PORT);
+	//client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_fragment_density_map();

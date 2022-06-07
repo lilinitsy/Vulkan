@@ -33,20 +33,20 @@ const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
 const uint32_t SERVERWIDTH  = 1600; // 512
-const uint32_t SERVERHEIGHT = 720; // 512
+const uint32_t SERVERHEIGHT = 704;  // 512
 const uint32_t CLIENTWIDTH  = 1600;
-const uint32_t CLIENTHEIGHT = 720;
+const uint32_t CLIENTHEIGHT = 704;
 
 // downsampled width
 const uint32_t DOWN_SWIDTH  = 1600;
-const uint32_t DOWN_SHEIGHT = 720;
+const uint32_t DOWN_SHEIGHT = 704;
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 480;
 const uint32_t FOVEAHEIGHT = 272;
 
 // Fragment density map to use
-const std::string FRAGMENT_DENSITY_MAP_PATH = "fdm50x22.jpg";
+const std::string FRAGMENT_DENSITY_MAP_PATH = "/system/media/sdcard/fdm50x22.jpg";
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
@@ -171,7 +171,6 @@ class VulkanExample : public VulkanExampleBase
 {
   public:
 	VulkanglTFScene glTFScene;
-
 
 	struct ShaderData
 	{
