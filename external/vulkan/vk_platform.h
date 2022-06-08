@@ -47,7 +47,7 @@ extern "C"
     // On Android 32-bit ARM targets, Vulkan functions use the "hardfloat"
     // calling convention, i.e. float parameters are passed in registers. This
     // is true even if the rest of the application passes floats on the stack,
-    // as it does by default when compiling for the armeabi-v7a NDK ABI.
+    // as it does by default when compiling for the arm64-v8a NDK ABI.
     #define VKAPI_ATTR __attribute__((pcs("aapcs-vfp")))
     #define VKAPI_CALL
     #define VKAPI_PTR  VKAPI_ATTR
