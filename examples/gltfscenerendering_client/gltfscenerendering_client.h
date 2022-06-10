@@ -32,13 +32,13 @@
 const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH  = 1600; // 512
-const uint32_t SERVERHEIGHT = 704;  // 512
-const uint32_t CLIENTWIDTH  = 1600;
+const uint32_t SERVERWIDTH	= 1600; // 512
+const uint32_t SERVERHEIGHT = 704;	// 512
+const uint32_t CLIENTWIDTH	= 1600;
 const uint32_t CLIENTHEIGHT = 704;
 
 // downsampled width
-const uint32_t DOWN_SWIDTH  = 1600;
+const uint32_t DOWN_SWIDTH	= 1600;
 const uint32_t DOWN_SHEIGHT = 704;
 
 // Possibly temp offloaded rendering attributes
@@ -159,11 +159,11 @@ class VulkanglTFScene
 	void loadTextures(tinygltf::Model &input);
 	void loadMaterials(tinygltf::Model &input);
 	void loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input,
-	              VulkanglTFScene::Node *parent,
-	              std::vector<uint32_t> &indexBuffer,
-	              std::vector<VulkanglTFScene::Vertex> &vertexBuffer);
+				  VulkanglTFScene::Node *parent,
+				  std::vector<uint32_t> &indexBuffer,
+				  std::vector<VulkanglTFScene::Vertex> &vertexBuffer);
 	void drawNode(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout,
-	              VulkanglTFScene::Node node);
+				  VulkanglTFScene::Node node);
 	void draw(VkCommandBuffer commandBuffer, VkPipelineLayout pipelineLayout);
 };
 
@@ -258,9 +258,9 @@ class VulkanExample : public VulkanExampleBase
 	 * directly into the memory, those won't be needed.
 	*/
 
-	float avg_fps   = 0.0f;
+	float avg_fps	= 0.0f;
 	float total_fps = 0.0f;
-	int num_frames  = 0;
+	int num_frames	= 0;
 
 	// Individual timing data
 	struct
@@ -294,11 +294,11 @@ class VulkanExample : public VulkanExampleBase
 	VkPhysicalDeviceFragmentDensityMapFeaturesEXT physical_device_fragmentdensitymap_features{};
 
 	// Camera and view properties
-	float eyeSeparation     = 0.08f;
+	float eyeSeparation		= 0.08f;
 	const float focalLength = 0.5f;
-	const float fov         = 90.0f;
-	const float zNear       = 0.1f;
-	const float zFar        = 256.0f;
+	const float fov			= 90.0f;
+	const float zNear		= 0.1f;
+	const float zFar		= 256.0f;
 
 	bool enable_multiview = true;
 

@@ -25,6 +25,8 @@ include_directories(${EXTERNAL_DIR}/imgui)
 include_directories(${EXTERNAL_DIR}/tinygltf)
 include_directories(${ANDROID_NDK}/sources/android/native_app_glue)
 
+add_compile_options(-fsanitize=address)
+
 target_link_libraries(
     native-lib
     native-app-glue

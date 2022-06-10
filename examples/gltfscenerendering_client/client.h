@@ -40,7 +40,7 @@ struct Client
 		{
 			sockaddr_in server_address = {
 				.sin_family = AF_INET,
-				.sin_port   = htons(static_cast<in_port_t>(PORT[i])),
+				.sin_port	= htons(static_cast<in_port_t>(PORT[i])),
 				//.sin_addr	= inet_addr("192.168.1.6"),
 			};
 			//inet_aton("192.168.1.6", (in_addr*) &server_address.sin_addr.s_addr);

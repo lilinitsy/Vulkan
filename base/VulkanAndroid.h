@@ -87,7 +87,7 @@ extern PFN_vkDestroySampler vkDestroySampler;
 extern PFN_vkDestroyImage vkDestroyImage;
 extern PFN_vkFreeMemory vkFreeMemory;
 extern PFN_vkCreateRenderPass vkCreateRenderPass;
-extern PFN_vkCreateRenderPass2 vkCreateRenderPass2;
+extern PFN_vkCreateRenderPass2KHR vkCreateRenderPass2KHR;
 extern PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
 extern PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
 extern PFN_vkCmdNextSubpass vkCmdNextSubpass;

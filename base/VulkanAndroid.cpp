@@ -54,7 +54,7 @@ PFN_vkDestroySampler vkDestroySampler;
 PFN_vkDestroyImage vkDestroyImage;
 PFN_vkFreeMemory vkFreeMemory;
 PFN_vkCreateRenderPass vkCreateRenderPass;
-PFN_vkCreateRenderPass2 vkCreateRenderPass2;
+PFN_vkCreateRenderPass2KHR vkCreateRenderPass2KHR;
 PFN_vkCmdBeginRenderPass vkCmdBeginRenderPass;
 PFN_vkCmdEndRenderPass vkCmdEndRenderPass;
 PFN_vkCmdNextSubpass vkCmdNextSubpass;
@@ -188,7 +188,7 @@ namespace vks
 			vkAllocateMemory = reinterpret_cast<PFN_vkAllocateMemory>(vkGetInstanceProcAddr(instance, "vkAllocateMemory"));
 			vkFreeMemory = reinterpret_cast<PFN_vkFreeMemory>(vkGetInstanceProcAddr(instance, "vkFreeMemory"));
 			vkCreateRenderPass = reinterpret_cast<PFN_vkCreateRenderPass>(vkGetInstanceProcAddr(instance, "vkCreateRenderPass"));
-			vkCreateRenderPass2 = reinterpret_cast<PFN_vkCreateRenderPass2>(vkGetInstanceProcAddr(instance, "vkCreateRenderPass2"));
+			vkCreateRenderPass2KHR = reinterpret_cast<PFN_vkCreateRenderPass2KHR>(vkGetInstanceProcAddr(instance, "vkCreateRenderPass2KHR"));
 			vkCmdBeginRenderPass = reinterpret_cast<PFN_vkCmdBeginRenderPass>(vkGetInstanceProcAddr(instance, "vkCmdBeginRenderPass"));
 			vkCmdEndRenderPass = reinterpret_cast<PFN_vkCmdEndRenderPass>(vkGetInstanceProcAddr(instance, "vkCmdEndRenderPass"));
 			vkCmdNextSubpass = reinterpret_cast<PFN_vkCmdNextSubpass>(vkGetInstanceProcAddr(instance, "vkCmdNextSubpass"));
