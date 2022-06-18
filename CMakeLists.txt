@@ -25,8 +25,32 @@ OPTION(USE_HEADLESS "Build the project using headless extension swapchain" OFF)
 set(RESOURCE_INSTALL_DIR "" CACHE PATH "Path to install resources to (leave empty for running uninstalled)")
 
 
+# FFMpeg setup
+set(CMAKE_CXX_FLAGS "-D__STDC_CONSTANT_MACROS")
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
+    libavdevice
+    libavfilter
+    libavformat
+    libavcodec
+    libswresample
+    libswscale
+    libavutil
+)
+
+add_compile_options(-mavx2)
+add_compile_options(-fopenmp)
+add_compile_options(-lavformat)
+add_compile_options(-lavcodec)
+add_compile_options(-lswscale)
+add_compile_options(-lavutil)
+add_compile_options(-lswresample)
+add_compile_options(-lm)
+add_compile_options(-lz)
+
 # Find OpenMP
 find_package(OpenMP)
+
 
 IF(OpenMP_CXX_FOUND)
 	message("OPENMP FOUND")
@@ -123,10 +147,8 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 
-add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-add_definitions(-mavx2)
-add_compile_options(-mavx2)
-add_compile_options(-fopenmp)
+
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

@@ -51,6 +51,17 @@ function(buildExample EXAMPLE_NAME)
 	if(RESOURCE_INSTALL_DIR)
 		install(TARGETS ${EXAMPLE_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 	endif()
+
+	target_link_libraries(${EXAMPLE_NAME} PkgConfig::LIBAV)
+	add_compile_options(-mavx2)
+	add_compile_options(-fopenmp)
+	add_compile_options(-lavformat)
+	add_compile_options(-lavcodec)
+	add_compile_options(-lswscale)
+	add_compile_options(-lavutil)
+	add_compile_options(-lswresample)
+	add_compile_options(-lm)
+	add_compile_options(-lz)
 endfunction(buildExample)
 
 # Build all examples
@@ -59,6 +70,8 @@ function(buildExamples)
 		buildExample(${EXAMPLE})
 	endforeach(EXAMPLE)
 endfunction(buildExamples)
+
+
 
 set(EXAMPLES
 	bloom

@@ -16,6 +16,14 @@
 
 #include <sys/time.h>
 
+extern "C"
+{
+	#include <libavcodec/avcodec.h>
+		
+	#include <libavutil/opt.h>
+	#include <libavutil/imgutils.h>
+
+}
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -290,8 +298,8 @@ class VulkanExample : public VulkanExampleBase
 	ImagePacket create_image_packet();
 	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset);
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
-	//void send_image_to_client(ImagePacket image_packet, uint32_t client_fd_index);
 
+	void video_encoder();
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);

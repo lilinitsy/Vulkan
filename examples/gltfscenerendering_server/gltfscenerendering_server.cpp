@@ -185,7 +185,7 @@ void VulkanglTFScene::loadNode(
 					          .data[accessor.byteOffset + view.byteOffset]));
 					vertexCount = accessor.count;
 				}
-				// Get buffer data for vertex normals
+				// Get buffer data for vertex nfavrmals
 				if(glTFPrimitive.attributes.find("NORMAL") !=
 				   glTFPrimitive.attributes.end())
 				{
@@ -1268,6 +1268,7 @@ void VulkanExample::updateUniformBuffers()
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
+	video_encoder();
 	loadAssets();
 	setup_multiview();
 	prepareUniformBuffers();
@@ -1288,6 +1289,48 @@ void VulkanExample::prepare()
 
 
 	prepared = true;
+}
+
+
+// This will only encode one frame at a time
+static void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet)
+{
+	int ret = avcodec_send_frame(encode_context, frame);
+
+	while(ret >= 0)
+	{
+		ret = avcodec_receive_packet(encode_context, packet);
+		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+		{
+			return;
+		}
+
+		else if(ret < 0)
+		{
+			throw std::runtime_error("Error during encoding\n");
+		}
+
+	}
+}
+
+void VulkanExample::video_encoder()
+{
+	const char *codec_name = "nvenc_h264";
+	const AVCodec *codec;
+	AVCodecContext *c = nullptr;
+	AVFrame *frame;
+	AVPacket *packet;
+	uint8_t endcodes[] = {0, 0, 1, 0xb7};
+	encode(c, frame, packet);
+
+	codec = avcodec_find_encoder_by_name(codec_name);
+	
+	if(!codec)
+	{
+		throw std::runtime_error("Could not find nvenc h264 codec\n");
+	}
+
+	//c = avcodec_alloc_context3(codec);
 }
 
 
