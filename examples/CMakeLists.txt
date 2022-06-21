@@ -12,6 +12,7 @@ function(buildExample EXAMPLE_NAME)
 		SET(MAIN_HEADER ${EXAMPLE_FOLDER}/${EXAMPLE_NAME}.h)
 	ENDIF()
 	find_package(OpenMP)
+
 	# imgui example requires additional source files
 	IF(${EXAMPLE_NAME} STREQUAL "imgui")
 		file(GLOB ADD_SOURCE "../external/imgui/*.cpp")
@@ -48,6 +49,7 @@ function(buildExample EXAMPLE_NAME)
 		endif()
 	endif()
 
+
 	if(RESOURCE_INSTALL_DIR)
 		install(TARGETS ${EXAMPLE_NAME} DESTINATION ${CMAKE_INSTALL_BINDIR})
 	endif()
@@ -62,6 +64,7 @@ function(buildExample EXAMPLE_NAME)
 	add_compile_options(-lswresample)
 	add_compile_options(-lm)
 	add_compile_options(-lz)
+	add_compile_options(-lOpenCL)
 endfunction(buildExample)
 
 # Build all examples

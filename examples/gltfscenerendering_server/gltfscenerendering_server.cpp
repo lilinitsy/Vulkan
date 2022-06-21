@@ -1379,6 +1379,13 @@ void *send_image_to_client2(void *hostrenderer)
 	return nullptr;
 }
 
+
+void setup_cl()
+{
+	
+}
+
+
 void VulkanExample::draw()
 {
 	timeval drawstarttime;

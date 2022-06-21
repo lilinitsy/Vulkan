@@ -25,6 +25,8 @@ extern "C"
 
 }
 
+#include <CL/opencl.hpp>
+
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYGLTF_NO_STB_IMAGE_WRITE
@@ -280,6 +282,10 @@ class VulkanExample : public VulkanExampleBase
 
 	bool enable_multiview = true;
 
+	cl::Context context;
+	cl::Program program;
+	cl::CommandQueue cl_queue;
+
 
 	VulkanExample();
 	~VulkanExample();
@@ -300,6 +306,8 @@ class VulkanExample : public VulkanExampleBase
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
 
 	void video_encoder();
+
+	void setup_opencl();
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);

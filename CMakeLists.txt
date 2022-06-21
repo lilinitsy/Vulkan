@@ -6,8 +6,6 @@ set(NAME vulkanExamples)
 
 project(${NAME})
 
-# Try to get vectorization
-
 include_directories(external)
 include_directories(external/glm)
 include_directories(external/gli)
@@ -25,6 +23,7 @@ OPTION(USE_HEADLESS "Build the project using headless extension swapchain" OFF)
 set(RESOURCE_INSTALL_DIR "" CACHE PATH "Path to install resources to (leave empty for running uninstalled)")
 
 
+
 # FFMpeg setup
 set(CMAKE_CXX_FLAGS "-D__STDC_CONSTANT_MACROS")
 find_package(PkgConfig REQUIRED)
@@ -38,6 +37,10 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
     libavutil
 )
 
+# OpenCL
+find_package(OpenCL REQUIRED)
+
+
 add_compile_options(-mavx2)
 add_compile_options(-fopenmp)
 add_compile_options(-lavformat)
@@ -47,6 +50,7 @@ add_compile_options(-lavutil)
 add_compile_options(-lswresample)
 add_compile_options(-lm)
 add_compile_options(-lz)
+add_compile_options(-lOpenCl)
 
 # Find OpenMP
 find_package(OpenMP)
@@ -56,6 +60,7 @@ IF(OpenMP_CXX_FOUND)
 	message("OPENMP FOUND")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 ENDIF()
+
 
 # Use FindVulkan module added with CMAKE 3.7
 if (NOT CMAKE_VERSION VERSION_LESS 3.7.0)
