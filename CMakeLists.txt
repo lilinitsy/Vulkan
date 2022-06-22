@@ -39,7 +39,13 @@ pkg_check_modules(LIBAV REQUIRED IMPORTED_TARGET
 
 # OpenCL
 find_package(OpenCL REQUIRED)
+include_directories(${OpenCL_INCLUDE_DIRS}) 
 
+if(OpenCL_FOUND)
+	message(${OpenCL_INCLUDE_DIRS})
+else(NOT OpenCL_FOUND)
+	message("NOT openCL found")
+endif()
 
 add_compile_options(-mavx2)
 add_compile_options(-fopenmp)
@@ -50,7 +56,7 @@ add_compile_options(-lavutil)
 add_compile_options(-lswresample)
 add_compile_options(-lm)
 add_compile_options(-lz)
-add_compile_options(-lOpenCl)
+add_compile_options(-lOpenCL)
 
 # Find OpenMP
 find_package(OpenMP)

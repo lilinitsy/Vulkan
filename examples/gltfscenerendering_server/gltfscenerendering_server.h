@@ -27,6 +27,7 @@ extern "C"
 
 #include <CL/opencl.hpp>
 
+
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYGLTF_NO_STB_IMAGE_WRITE
@@ -282,9 +283,14 @@ class VulkanExample : public VulkanExampleBase
 
 	bool enable_multiview = true;
 
-	cl::Context context;
-	cl::Program program;
-	cl::CommandQueue cl_queue;
+	struct
+	{
+		cl::Context context;
+		cl::Platform platform;
+		cl::Device device;
+		cl::CommandQueue queue;
+		cl::Program alpha_removal_program;
+	} cl;
 
 
 	VulkanExample();

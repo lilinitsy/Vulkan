@@ -65,6 +65,9 @@ function(buildExample EXAMPLE_NAME)
 	add_compile_options(-lm)
 	add_compile_options(-lz)
 	add_compile_options(-lOpenCL)
+
+	target_link_libraries(${EXAMPLE_NAME} OpenCL::OpenCL)
+
 endfunction(buildExample)
 
 # Build all examples

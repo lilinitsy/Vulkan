@@ -17,6 +17,7 @@
 
 #include "gltfscenerendering_server.h"
 
+
 /*
         Vulkan glTF scene class
 */
@@ -1268,7 +1269,8 @@ void VulkanExample::updateUniformBuffers()
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
-	video_encoder();
+	//video_encoder();
+	setup_opencl();
 	loadAssets();
 	setup_multiview();
 	prepareUniformBuffers();
@@ -1380,9 +1382,28 @@ void *send_image_to_client2(void *hostrenderer)
 }
 
 
-void setup_cl()
+void VulkanExample::setup_opencl()
 {
-	
+	std::vector<cl::Platform> all_platforms;
+	cl::Platform::get(&all_platforms);
+	if(all_platforms.size() == 0)
+	{
+		throw std::runtime_error("No OpenCL platforms found");
+	}
+
+ 	cl.platform = all_platforms[0];
+	printf("Using platform: %s\n", cl.platform.getInfo<CL_PLATFORM_NAME>().c_str());
+
+	std::vector<cl::Device> all_devices;
+	cl.platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
+	cl.device = all_devices[0];
+	printf("Using OpenCL device: %s\n", cl.device.getInfo<CL_DEVICE_NAME>().c_str());
+
+	cl::Context ctx({cl.device});
+	cl.context = ctx;
+
+	cl::CommandQueue cmdqueue(cl.context, cl.device);
+	cl.queue = cmdqueue;
 }
 
 
