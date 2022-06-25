@@ -437,6 +437,11 @@ VulkanExample::~VulkanExample()
 	{
 		vkDestroyFence(device, multiview_pass.wait_fences[i], nullptr);
 	}
+
+	avcodec_free_context(&encoder.c);
+	av_frame_free(&encoder.frame);
+	av_packet_free(&encoder.packet);
+
 }
 
 void VulkanExample::getEnabledFeatures()
@@ -1269,7 +1274,7 @@ void VulkanExample::updateUniformBuffers()
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
-	//video_encoder();
+	setup_video_encoder();
 	setup_opencl();
 	loadAssets();
 	setup_multiview();
@@ -1295,44 +1300,181 @@ void VulkanExample::prepare()
 
 
 // This will only encode one frame at a time
-static void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet)
+static void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile)
 {
-	int ret = avcodec_send_frame(encode_context, frame);
+	int ret;
+
+	/* send the frame to the encoder */
+	if(frame)
+		printf("Send frame %3" PRId64 "\n", frame->pts);
+
+	ret = avcodec_send_frame(encode_context, frame);
+	if(ret < 0)
+	{
+		fprintf(stderr, "Error sending a frame for encoding\n");
+		exit(1);
+	}
 
 	while(ret >= 0)
 	{
 		ret = avcodec_receive_packet(encode_context, packet);
 		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-		{
 			return;
-		}
-
 		else if(ret < 0)
 		{
-			throw std::runtime_error("Error during encoding\n");
+			fprintf(stderr, "Error during encoding\n");
+			exit(1);
 		}
 
+		printf("Write packet %3" PRId64 " (size=%5d)\n", packet->pts, packet->size);
+		fwrite(packet->data, 1, packet->size, outfile);
+		av_packet_unref(packet);
 	}
 }
 
-void VulkanExample::video_encoder()
-{
-	const char *codec_name = "nvenc_h264";
-	const AVCodec *codec;
-	AVCodecContext *c = nullptr;
-	AVFrame *frame;
-	AVPacket *packet;
-	uint8_t endcodes[] = {0, 0, 1, 0xb7};
-	encode(c, frame, packet);
 
-	codec = avcodec_find_encoder_by_name(codec_name);
-	
-	if(!codec)
+void VulkanExample::setup_video_encoder()
+{
+	const char *filename, *codec_name;
+	int i, ret, x, y;
+	FILE *f;
+	uint8_t endcode[] = {0, 0, 1, 0xb7};
+
+	filename   = "file.mp4";
+	codec_name = "nvenc_h264";
+
+	/* find the mpeg1video encoder */
+	encoder.codec = avcodec_find_encoder_by_name(codec_name);
+	if(!encoder.codec)
 	{
-		throw std::runtime_error("Could not find nvenc h264 codec\n");
+		fprintf(stderr, "Codec '%s' not found\n", codec_name);
+		exit(1);
 	}
 
-	//c = avcodec_alloc_context3(codec);
+	encoder.c = avcodec_alloc_context3(encoder.codec);
+	if(!encoder.c)
+	{
+		fprintf(stderr, "Could not allocate video codec context\n");
+		exit(1);
+	}
+
+	encoder.packet = av_packet_alloc();
+	if(!encoder.packet)
+		exit(1);
+
+	/* put sample parameters */
+	//c->bit_rate = 400000;
+	/* resolution must be a multiple of two */
+	encoder.c->width  = 640;
+	encoder.c->height = 480;
+	/* frames per second */
+	encoder.c->time_base = (AVRational){1, 60};
+	// c->framerate = (AVRational){25, 1};
+
+	/* emit one intra frame every ten frames
+     * check frame pict_type before passing frame
+     * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
+     * then gop_size is ignored and the output of encoder
+     * will always be I frame irrespective to gop_size
+     */
+	// c->gop_size		= 10;
+	// c->max_b_frames = 1;
+	encoder.c->pix_fmt		= AV_PIX_FMT_YUV420P;
+
+	if(encoder.codec->id == AV_CODEC_ID_H264)
+		av_opt_set(encoder.c->priv_data, "preset", "slow", 0);
+
+	/* open it */
+	ret = avcodec_open2(encoder.c, encoder.codec, NULL);
+	if(ret < 0)
+	{
+		throw std::runtime_error("Could not open codec!");
+	}
+
+	f = fopen(filename, "wb");
+	if(!f)
+	{
+		fprintf(stderr, "Could not open %s\n", filename);
+		exit(1);
+	}
+
+	encoder.frame = av_frame_alloc();
+	if(!encoder.frame)
+	{
+		fprintf(stderr, "Could not allocate video frame\n");
+		exit(1);
+	}
+	encoder.frame->format = encoder.c->pix_fmt;
+	encoder.frame->width  = encoder.c->width;
+	encoder.frame->height = encoder.c->height;
+
+	ret = av_frame_get_buffer(encoder.frame, 0);
+	if(ret < 0)
+	{
+		fprintf(stderr, "Could not allocate the video frame data\n");
+		exit(1);
+	}
+
+	/* encode 1 second of video */
+
+	fflush(stdout);
+
+	/* Make sure the frame data is writable.
+		On the first round, the frame is fresh from av_frame_get_buffer()
+		and therefore we know it is writable.
+		But on the next rounds, encode() will have called
+		avcodec_send_frame(), and the codec may have kept a reference to
+		the frame in its internal structures, that makes the frame
+		unwritable.
+		av_frame_make_writable() checks that and allocates a new buffer
+		for the frame only if necessary.
+		*/
+	ret = av_frame_make_writable(encoder.frame);
+	if(ret < 0)
+		exit(1);
+
+	/* Prepare a dummy image.
+		In real code, this is where you would have your own logic for
+		filling the frame. FFmpeg does not care what you put in the
+		frame.
+		*/
+	/* Y */
+	for(int y = 0; y < encoder.c->height; y++)
+	{
+		for(int x = 0; x < encoder.c->width; x++)
+		{
+			encoder.frame->data[0][y * encoder.frame->linesize[0] + x] = x + y + i * 3;
+		}
+	}
+
+	/* Cb and Cr */
+	for(int y = 0; y < encoder.c->height / 2; y++)
+	{
+		for(int x = 0; x < encoder.c->width / 2; x++)
+		{
+			encoder.frame->data[1][y * encoder.frame->linesize[1] + x] = 128 + y + i * 2;
+			encoder.frame->data[2][y * encoder.frame->linesize[2] + x] = 64 + x + i * 5;
+		}
+	}
+
+	encoder.frame->pts = i;
+
+	/* encode the image */
+	encode(encoder.c, encoder.frame, encoder.packet, f);
+
+
+	/* flush the encoder */
+	encode(encoder.c, NULL, encoder.packet, f);
+
+	/* Add sequence end code to have a real MPEG file.
+       It makes only sense because this tiny examples writes packets
+       directly. This is called "elementary stream" and only works for some
+       codecs. To create a valid file, you usually need to write packets
+       into a proper file format or protocol; see muxing.c.
+     */
+	if(encoder.codec->id == AV_CODEC_ID_MPEG1VIDEO || encoder.codec->id == AV_CODEC_ID_MPEG2VIDEO)
+		fwrite(endcode, 1, sizeof(endcode), f);
+	fclose(f);
 }
 
 
@@ -1404,6 +1546,51 @@ void VulkanExample::setup_opencl()
 
 	cl::CommandQueue cmdqueue(cl.context, cl.device);
 	cl.queue = cmdqueue;
+
+	// Load kernel
+	std::string rgba_to_rgb_kernel_str_code = 
+		"kernel void cl_rgba_to_rgb(global const char *in, global char *out)"
+		"{"
+		"	int in_idx = get_global_id(0);"
+		"	out[0] = in[in_idx];"
+		"	barrier(CLK_GLOBAL_MEM_FENCE);"
+		"}";
+
+	cl.sources.push_back({rgba_to_rgb_kernel_str_code.c_str(), rgba_to_rgb_kernel_str_code.length()});
+	cl::Program program(cl.context, cl.sources);
+	cl.alpha_removal_program = program;
+
+	if(cl.alpha_removal_program.build({cl.device}) != CL_SUCCESS)
+	{
+		std::cout <<"Error building: " << cl.alpha_removal_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
+		exit(-1);
+	}
+
+
+	// Tests for kernel
+	char *in_h = new char[16];
+	char *out_h = new char[16];
+
+	for(uint32_t i = 0; i < 16; i++)
+	{
+		in_h[i] = (char) i;
+	}
+
+	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(char) * 16);
+	cl::Buffer out_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 16);
+
+	cl.queue.enqueueWriteBuffer(in_d, CL_TRUE, 0, sizeof(char) * 16, in_h);
+
+	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_removal_program, "cl_rgba_to_rgb"));
+	cl::NDRange global(16);
+	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_d).wait();
+
+	cl.queue.enqueueReadBuffer(out_d, CL_TRUE, 0, sizeof(char) * 16, out_h);
+
+	for(uint32_t i = 0; i < 16; i++)
+	{
+		printf("%d out_h: %d\n", i, out_h[i]);
+	}
 }
 
 

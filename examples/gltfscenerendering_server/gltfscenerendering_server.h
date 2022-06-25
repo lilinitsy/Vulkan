@@ -290,7 +290,16 @@ class VulkanExample : public VulkanExampleBase
 		cl::Device device;
 		cl::CommandQueue queue;
 		cl::Program alpha_removal_program;
+		cl::Program::Sources sources;
 	} cl;
+
+	struct
+	{
+		const AVCodec *codec;
+		AVCodecContext *c;
+		AVFrame *frame;
+		AVPacket *packet;
+	} encoder;
 
 
 	VulkanExample();
@@ -311,7 +320,8 @@ class VulkanExample : public VulkanExampleBase
 	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset);
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
 
-	void video_encoder();
+	void setup_video_encoder();
+	void begin_video_encoding();
 
 	void setup_opencl();
 
