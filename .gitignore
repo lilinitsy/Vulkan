@@ -217,6 +217,15 @@ data/readme.txt
 data/models/cerberus/*.*
 !data/textures/hdr/README.md
 
+# Test files
+*.mp4
+
+# CCLS (language server for IDE tooling)
+.ccls-cache/
+
+# Direnv
+.direnv/
+
 *.args.json
 
 # Ignore VS project files
