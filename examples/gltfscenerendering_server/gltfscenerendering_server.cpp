@@ -1549,10 +1549,25 @@ void VulkanExample::setup_opencl()
 
 	// Load kernel
 	std::string rgba_to_rgb_kernel_str_code = 
-		"kernel void cl_rgba_to_rgb(global const char *in, global char *out)"
+		"kernel void cl_rgba_to_rgb(global const char *in, global char *out_Y, global char *out_U, global char *out_V)"
 		"{"
 		"	int in_idx = get_global_id(0);"
-		"	out[0] = in[in_idx];"
+
+		"	if(in_idx % 4 == 0)"
+		"	{"
+		"		out_Y[in_idx / 4] = in[in_idx];"
+		"	}"
+
+		"	else if(in_idx % 4 == 1)"
+		"	{"
+		"		out_U[in_idx / 4] = in[in_idx];"
+		"	}"
+
+		"	else if(in_idx % 4 == 2)"
+		"	{"
+		"		out_V[in_idx / 4] = in[in_idx];"
+		"	}"
+
 		"	barrier(CLK_GLOBAL_MEM_FENCE);"
 		"}";
 
@@ -1562,34 +1577,74 @@ void VulkanExample::setup_opencl()
 
 	if(cl.alpha_removal_program.build({cl.device}) != CL_SUCCESS)
 	{
-		std::cout <<"Error building: " << cl.alpha_removal_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
+		std::cout << "Error building: " << cl.alpha_removal_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
 		exit(-1);
 	}
 
 
 	// Tests for kernel
 	char *in_h = new char[16];
-	char *out_h = new char[16];
+	char *out_Y_h = new char[4];
+	char *out_U_h = new char[4];
+	char *out_V_h = new char[4];
 
 	for(uint32_t i = 0; i < 16; i++)
 	{
-		in_h[i] = (char) i;
+		if(i % 4 == 0)
+		{
+			in_h[i] = (char) 1;
+		}
+
+		else if(i % 4 == 1)
+		{
+			in_h[i] = (char) 2;
+		}
+		
+		else if(i % 4 == 2)
+		{
+			in_h[i] = (char) 3;
+		}
+
+		else
+		{
+			in_h[i] = (char) 4;
+		}
+	}
+	
+
+	for(uint32_t i = 0; i < 16; i++)
+	{
+		printf("%d in_h: %d\n", i, in_h[i]);
 	}
 
 	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(char) * 16);
-	cl::Buffer out_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 16);
+	cl::Buffer out_Y_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
+	cl::Buffer out_U_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
+	cl::Buffer out_V_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
 
 	cl.queue.enqueueWriteBuffer(in_d, CL_TRUE, 0, sizeof(char) * 16, in_h);
 
-	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_removal_program, "cl_rgba_to_rgb"));
+	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_removal_program, "cl_rgba_to_rgb"));
 	cl::NDRange global(16);
-	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_d).wait();
+	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_Y_d, out_U_d, out_V_d).wait();
 
-	cl.queue.enqueueReadBuffer(out_d, CL_TRUE, 0, sizeof(char) * 16, out_h);
+	cl.queue.enqueueReadBuffer(out_Y_d, CL_TRUE, 0, sizeof(char) * 4, out_Y_h);
+	cl.queue.enqueueReadBuffer(out_U_d, CL_TRUE, 0, sizeof(char) * 4, out_U_h);
+	cl.queue.enqueueReadBuffer(out_V_d, CL_TRUE, 0, sizeof(char) * 4, out_V_h);
 
-	for(uint32_t i = 0; i < 16; i++)
+	for(uint32_t i = 0; i < 4; i++)
 	{
-		printf("%d out_h: %d\n", i, out_h[i]);
+		printf("%d out_Y_h: %d\n", i, out_Y_h[i]);
+	}
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_U_h: %d\n", i, out_U_h[i]);
+	}
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_V_h: %d\n", i, out_V_h[i]);
 	}
 }
 
