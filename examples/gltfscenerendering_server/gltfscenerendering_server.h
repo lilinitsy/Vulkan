@@ -321,9 +321,10 @@ class VulkanExample : public VulkanExampleBase
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
 
 	void setup_video_encoder();
-	void begin_video_encoding();
+	void begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v);
 
 	void setup_opencl();
+	void rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t len);
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);

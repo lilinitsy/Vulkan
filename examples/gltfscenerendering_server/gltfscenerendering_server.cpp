@@ -757,7 +757,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// DO NOT drawUI in the multiview pass.
-			//dawUI(drawCmdBuffers[i]);
+			drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1284,7 +1284,7 @@ void VulkanExample::prepare()
 	lefteye_fovea  = create_image_packet();
 	righteye_fovea = create_image_packet();
 	server         = Server();
-	server.connect_to_client(PORT);
+	//server.connect_to_client(PORT);
 	buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -1336,9 +1336,7 @@ static void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *pac
 void VulkanExample::setup_video_encoder()
 {
 	const char *filename, *codec_name;
-	int i, ret, x, y;
-	FILE *f;
-	uint8_t endcode[] = {0, 0, 1, 0xb7};
+	int ret;
 
 	filename   = "file.mp4";
 	codec_name = "nvenc_h264";
@@ -1365,8 +1363,8 @@ void VulkanExample::setup_video_encoder()
 	/* put sample parameters */
 	//c->bit_rate = 400000;
 	/* resolution must be a multiple of two */
-	encoder.c->width  = 640;
-	encoder.c->height = 480;
+	encoder.c->width  = FOVEAWIDTH;
+	encoder.c->height = FOVEAHEIGHT;
 	/* frames per second */
 	encoder.c->time_base = (AVRational){1, 60};
 	// c->framerate = (AVRational){25, 1};
@@ -1379,7 +1377,7 @@ void VulkanExample::setup_video_encoder()
      */
 	// c->gop_size		= 10;
 	// c->max_b_frames = 1;
-	encoder.c->pix_fmt		= AV_PIX_FMT_YUV420P;
+	encoder.c->pix_fmt		= AV_PIX_FMT_YUV444P;
 
 	if(encoder.codec->id == AV_CODEC_ID_H264)
 		av_opt_set(encoder.c->priv_data, "preset", "slow", 0);
@@ -1391,12 +1389,6 @@ void VulkanExample::setup_video_encoder()
 		throw std::runtime_error("Could not open codec!");
 	}
 
-	f = fopen(filename, "wb");
-	if(!f)
-	{
-		fprintf(stderr, "Could not open %s\n", filename);
-		exit(1);
-	}
 
 	encoder.frame = av_frame_alloc();
 	if(!encoder.frame)
@@ -1414,8 +1406,21 @@ void VulkanExample::setup_video_encoder()
 		fprintf(stderr, "Could not allocate the video frame data\n");
 		exit(1);
 	}
+}
 
-	/* encode 1 second of video */
+
+void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
+{
+	int i;
+	uint8_t endcode[] = {0, 0, 1, 0xb7};
+	FILE *f;
+	std::string filename = "h264encoding" + std::to_string(numframes) + ".mp4";
+	f = fopen(filename.c_str(), "wb");
+	if(!f)
+	{
+		fprintf(stderr, "Could not open %s\n", filename.c_str());
+		exit(1);
+	}
 
 	fflush(stdout);
 
@@ -1429,7 +1434,7 @@ void VulkanExample::setup_video_encoder()
 		av_frame_make_writable() checks that and allocates a new buffer
 		for the frame only if necessary.
 		*/
-	ret = av_frame_make_writable(encoder.frame);
+	int ret = av_frame_make_writable(encoder.frame);
 	if(ret < 0)
 		exit(1);
 
@@ -1439,25 +1444,29 @@ void VulkanExample::setup_video_encoder()
 		frame.
 		*/
 	/* Y */
+	int idx = 0;
 	for(int y = 0; y < encoder.c->height; y++)
 	{
 		for(int x = 0; x < encoder.c->width; x++)
 		{
-			encoder.frame->data[0][y * encoder.frame->linesize[0] + x] = x + y + i * 3;
+			encoder.frame->data[0][y * encoder.frame->linesize[0] + x] = luminance_y[idx];
+			encoder.frame->data[1][y * encoder.frame->linesize[1] + x] = bp_u[idx];
+			encoder.frame->data[2][y * encoder.frame->linesize[2] + x] = rp_v[idx];
+			idx++;
 		}
 	}
 
 	/* Cb and Cr */
-	for(int y = 0; y < encoder.c->height / 2; y++)
+	/*for(int y = 0; y < encoder.c->height; y++)
 	{
-		for(int x = 0; x < encoder.c->width / 2; x++)
+		for(int x = 0; x < encoder.c->width; x++)
 		{
 			encoder.frame->data[1][y * encoder.frame->linesize[1] + x] = 128 + y + i * 2;
 			encoder.frame->data[2][y * encoder.frame->linesize[2] + x] = 64 + x + i * 5;
 		}
-	}
+	}*/
 
-	encoder.frame->pts = i;
+	encoder.frame->pts = 0;
 
 	/* encode the image */
 	encode(encoder.c, encoder.frame, encoder.packet, f);
@@ -1476,6 +1485,27 @@ void VulkanExample::setup_video_encoder()
 		fwrite(endcode, 1, sizeof(endcode), f);
 	fclose(f);
 }
+
+void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t in_len)
+{
+	size_t out_len = in_len / 4;	
+	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
+	cl::Buffer out_Y_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
+	cl::Buffer out_U_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
+	cl::Buffer out_V_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
+
+	cl.queue.enqueueWriteBuffer(in_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_h);
+
+	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_removal_program, "cl_rgba_to_rgb"));
+	cl::NDRange global(in_len);
+	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_Y_d, out_U_d, out_V_d).wait();
+
+	cl.queue.enqueueReadBuffer(out_Y_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_Y_h);
+	cl.queue.enqueueReadBuffer(out_U_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_U_h);
+	cl.queue.enqueueReadBuffer(out_V_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_V_h);
+
+}
+
 
 
 void *send_image_to_client(void *hostrenderer)
@@ -1728,22 +1758,29 @@ void VulkanExample::draw()
 	gettimeofday(&copyendtime, nullptr);
 	timers.copy_image_time.push_back(vku::time_difference(copystarttime, copyendtime));
 
-	int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
-	int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
+	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	uint8_t out_Y_h[input_framesize_bytes / 4];
+	uint8_t out_U_h[input_framesize_bytes / 4];
+	uint8_t out_V_h[input_framesize_bytes / 4];
+	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
+	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
 
-	pthread_join(vk_pthread.left_send_image, nullptr);
-	pthread_join(vk_pthread.right_send_image, nullptr);
+	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
+	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
+
+	//pthread_join(vk_pthread.left_send_image, nullptr);
+	//pthread_join(vk_pthread.right_send_image, nullptr);
 
 	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
 
-	float camera_buf[6];
+	//float camera_buf[6];
 
-	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
-	camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
-	camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
+	//int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	//camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
+	//camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
 
 
-	if(numframes == 1024)
+	/*if(numframes == 1024)
 	{
 		// Write client data
 		int len = 1024 * sizeof(float) * 7;
@@ -1784,7 +1821,7 @@ void VulkanExample::draw()
 		}
 
 		file2.close();
-	}
+	}*/
 
 
 	numframes++;
