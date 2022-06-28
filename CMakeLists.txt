@@ -163,6 +163,16 @@ endif()
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Enable exporting of compile_commands.json, which can help clangd find headers
+# in the Nix store that it wouldn't normally be able to find. Just run this once
+# and link this wherever development is happening and then further invocations
+# to ninja should automatically update it.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
+if(CMAKE_EXPORT_COMPILE_COMMANDS)
+set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES
+${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
+endif()
+
 file(GLOB SOURCE *.cpp )
 
 # Build all examples

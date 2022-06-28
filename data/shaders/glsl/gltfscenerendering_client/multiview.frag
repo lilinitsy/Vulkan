@@ -99,7 +99,11 @@ void main()
 	}
 
 
-	outColor = vec4(diffuse * color.rgb + spec, color.a);
+	vec4 outColor_rgba = vec4(diffuse * color.rgb + spec, color.a);
+	outColor = vec4(
+					outColor_rgba.r * 0.299 + outColor_rgba.g * 0.587 + outColor_rgba.b * 0.114,
+					outColor_rgba.r * -0.147 + outColor_rgba.g -0.289 + outColor_rgba.b * 0.436,
+					outColor_rgba.r * 0.299 + outColor_rgba.g * -0.515 + outColor_rgba.b * -0.1);
 	//outColor = color;
 
 }

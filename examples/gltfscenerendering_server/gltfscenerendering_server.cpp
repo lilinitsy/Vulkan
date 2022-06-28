@@ -1300,19 +1300,26 @@ void VulkanExample::prepare()
 
 
 // This will only encode one frame at a time
-static void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile)
+void VulkanExample::encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile)
 {
-	int ret;
+	//int ret;
 
 	/* send the frame to the encoder */
 	if(frame)
-		printf("Send frame %3" PRId64 "\n", frame->pts);
+		printf("Frame num: %d\tSend frame %3" PRId64 "\n", numframes, frame->pts);
 
-	ret = avcodec_send_frame(encode_context, frame);
+
+	int ret = avcodec_send_frame(encode_context, frame);
 	if(ret < 0)
 	{
-		fprintf(stderr, "Error sending a frame for encoding\n");
-		exit(1);
+		char errbuf[64];
+		int err = av_strerror(ret, errbuf, 64);
+
+		printf("Error: %s\n", &errbuf[0]);
+		//av_make_error_string(errbuf, 64, ret);
+
+		printf("Ret: %d\n", ret);
+		throw std::runtime_error("Error sending frame for encoding");
 	}
 
 	while(ret >= 0)
@@ -1322,8 +1329,7 @@ static void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *pac
 			return;
 		else if(ret < 0)
 		{
-			fprintf(stderr, "Error during encoding\n");
-			exit(1);
+			throw std::runtime_error("Could not receive packet");
 		}
 
 		printf("Write packet %3" PRId64 " (size=%5d)\n", packet->pts, packet->size);
@@ -1389,23 +1395,26 @@ void VulkanExample::setup_video_encoder()
 		throw std::runtime_error("Could not open codec!");
 	}
 
-
 	encoder.frame = av_frame_alloc();
-	if(!encoder.frame)
-	{
-		fprintf(stderr, "Could not allocate video frame\n");
-		exit(1);
-	}
-	encoder.frame->format = encoder.c->pix_fmt;
-	encoder.frame->width  = encoder.c->width;
-	encoder.frame->height = encoder.c->height;
+	encoder.frame->format = AV_PIX_FMT_YUV444P;
+	encoder.frame->width = FOVEAWIDTH;
+	encoder.frame->height = FOVEAHEIGHT;
+	encoder.frame->pict_type = AV_PICTURE_TYPE_I;
+	av_frame_get_buffer(encoder.frame, 1);
 
+
+	/* Make sure the frame data is writable.
+		On the first round, the frame is fresh from av_frame_get_buffer()
+		and therefore we know it is writable.
+		But on the next rounds, encode() will have called
+		avcodec_send_frame(), and the codec may have kept a reference to
+		the frame in its internal structures, that makes the frame
+		unwritable.
+		av_frame_make_writable() checks that and allocates a new buffer
+		for the frame only if necessary.
+		*/
 	ret = av_frame_get_buffer(encoder.frame, 0);
-	if(ret < 0)
-	{
-		fprintf(stderr, "Could not allocate the video frame data\n");
-		exit(1);
-	}
+
 }
 
 
@@ -1422,21 +1431,19 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 		exit(1);
 	}
 
+
 	fflush(stdout);
 
-	/* Make sure the frame data is writable.
-		On the first round, the frame is fresh from av_frame_get_buffer()
-		and therefore we know it is writable.
-		But on the next rounds, encode() will have called
-		avcodec_send_frame(), and the codec may have kept a reference to
-		the frame in its internal structures, that makes the frame
-		unwritable.
-		av_frame_make_writable() checks that and allocates a new buffer
-		for the frame only if necessary.
-		*/
 	int ret = av_frame_make_writable(encoder.frame);
 	if(ret < 0)
-		exit(1);
+	{
+		throw std::runtime_error("Could not make av frame writeable");
+	}
+
+	else
+	{
+		printf("av_frame_make_writeable successful\n");
+	}
 
 	/* Prepare a dummy image.
 		In real code, this is where you would have your own logic for
@@ -1456,7 +1463,7 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 		}
 	}
 
-	/* Cb and Cr */
+	/* Cb and Cr, 420 format */
 	/*for(int y = 0; y < encoder.c->height; y++)
 	{
 		for(int x = 0; x < encoder.c->width; x++)
@@ -1470,10 +1477,10 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 
 	/* encode the image */
 	encode(encoder.c, encoder.frame, encoder.packet, f);
-
+	
 
 	/* flush the encoder */
-	encode(encoder.c, NULL, encoder.packet, f);
+	//encode(encoder.c, NULL, encoder.packet, f);
 
 	/* Add sequence end code to have a real MPEG file.
        It makes only sense because this tiny examples writes packets
@@ -1482,8 +1489,17 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
        into a proper file format or protocol; see muxing.c.
      */
 	if(encoder.codec->id == AV_CODEC_ID_MPEG1VIDEO || encoder.codec->id == AV_CODEC_ID_MPEG2VIDEO)
-		fwrite(endcode, 1, sizeof(endcode), f);
-	fclose(f);
+	{
+		int fwrite_error = fwrite(endcode, 1, sizeof(endcode), f);
+	}
+	int fileclose = fclose(f);
+	if(fileclose != 0)
+	{
+		
+		throw std::runtime_error("Could not close file stream");
+	}
+
+	//av_frame_free(&encoder.frame);
 }
 
 void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t in_len)
@@ -1763,6 +1779,7 @@ void VulkanExample::draw()
 	uint8_t out_U_h[input_framesize_bytes / 4];
 	uint8_t out_V_h[input_framesize_bytes / 4];
 	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
+	//setup_video_encoder();
 	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
