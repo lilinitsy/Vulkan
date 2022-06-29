@@ -16,6 +16,10 @@
 
 
 #include "gltfscenerendering_server.h"
+#include <libavcodec/avcodec.h>
+#include <libavcodec/codec.h>
+#include <stdexcept>
+#include <string>
 
 
 /*
@@ -1275,6 +1279,8 @@ void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
 	setup_video_encoder();
+	setup_video_decoder();
+
 	setup_opencl();
 	loadAssets();
 	setup_multiview();
@@ -1480,7 +1486,7 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 	
 
 	/* flush the encoder */
-	//encode(encoder.c, NULL, encoder.packet, f);
+	encode(encoder.c, NULL, encoder.packet, f);
 
 	/* Add sequence end code to have a real MPEG file.
        It makes only sense because this tiny examples writes packets
@@ -1492,15 +1498,166 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 	{
 		int fwrite_error = fwrite(endcode, 1, sizeof(endcode), f);
 	}
+
 	int fileclose = fclose(f);
 	if(fileclose != 0)
 	{
-		
 		throw std::runtime_error("Could not close file stream");
 	}
 
+	printf("Video encoding successful\n");
 	//av_frame_free(&encoder.frame);
 }
+
+
+void VulkanExample::setup_video_decoder()
+{
+	decoder.packet = av_packet_alloc();
+	if(!decoder.packet)
+	{
+		throw std::runtime_error("Decoder: Could not alloc packet!");
+	}
+
+	// not sure if it's necessary to set end of buffer to 0
+	decoder.codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+	if(!decoder.codec)
+	{
+		throw std::runtime_error("Decoder: Could not find H264 encoder");
+	}
+
+	decoder.parser = av_parser_init(decoder.codec->id);
+	if(!decoder.parser)
+	{
+		throw std::runtime_error("Decoder: Could not find parser");
+	}
+	
+	decoder.c = avcodec_alloc_context3(decoder.codec);
+	if(!decoder.c)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video codec context");
+	}
+
+	// Open the codec
+	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
+	{
+		throw std::runtime_error("Decoder: Could not open codec");
+	}
+}
+
+static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *filename)
+{
+    FILE *f;
+    int i;
+ 
+    f = fopen(filename,"wb");
+    fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
+    for (i = 0; i < ysize; i++)
+	{
+        fwrite(buf + i * wrap, 1, xsize, f);
+	}
+	fclose(f);
+}
+
+
+void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPacket *packet, const char *filename)
+{
+	printf("%d Decode called\n", numframes);
+	char buf[1024];
+	int ret = avcodec_send_packet(decode_context, packet);
+	if(ret < 0)
+	{
+		throw std::runtime_error("Decode: Error sending a packet");
+	}
+	
+	while(ret >= 0)
+	{
+		printf("%d In loop of decode\n", numframes);
+		ret = avcodec_receive_frame(decode_context, frame);
+		printf("%d AV Frame Received\n", numframes);
+		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+		{
+			printf("AV Error on ret after receiving frame; not writing output\n");
+			return;
+		}
+		else if(ret < 0)
+		{
+			throw std::runtime_error("Error during decoding");
+		}
+	
+		printf("saving frame %3d\n", decode_context->frame_number);
+		fflush(stdout);
+	
+		/* the picture is allocated by the decoder. no need to
+			free it */
+		snprintf(buf, sizeof(buf), "%s-%d", filename, decode_context->frame_number);
+		pgm_save(frame->data[0], frame->linesize[0],
+					frame->width, frame->height, buf);
+	}
+}
+
+
+void VulkanExample::begin_video_decoding()
+{
+	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	uint8_t *data;
+	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
+	std::string filename = "h264encoding" + std::to_string(numframes) + ".mp4";
+	std::string outfilename = "pgmh264encoding" + std::to_string(numframes) + ".pgm";
+	FILE *f = fopen(filename.c_str(), "rb");
+	if(!f)
+	{
+		throw std::runtime_error("Decoder: Could not open file");
+	}
+
+	decoder.frame = av_frame_alloc();
+	if(!decoder.frame)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video frame");
+	}
+
+	int eof;
+	do
+	{
+		int data_size = fread(inbuf, 1, INBUF_SIZE, f);
+		if(ferror(f))
+		{
+			printf("Decoder (not crashing yet): ferror on reading file data\n");
+			break;
+		}
+
+		eof = !data_size;
+		data = inbuf;
+		while(data_size > 0 || eof)
+		{
+			printf("%d In loop of begin_decoder\n", numframes);
+			int ret = av_parser_parse2(decoder.parser, decoder.c, &decoder.packet->data, &decoder.packet->size, data, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+			if(ret < 0)
+			{
+				throw std::runtime_error("Decoder: Error while parsing");
+			}
+
+			data += ret;
+			data_size -= ret;
+
+			if(decoder.packet->size)
+			{
+				decode(decoder.c, decoder.frame, decoder.packet, outfilename.c_str());
+			}
+
+			else if(eof)
+			{
+				break;
+			}
+		}
+	} while (!eof);
+
+	// flush decoder
+
+	decode(decoder.c, decoder.frame, nullptr, outfilename.c_str());
+
+	fclose(f);
+}
+
 
 void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t in_len)
 {
@@ -1781,6 +1938,7 @@ void VulkanExample::draw()
 	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
 	//setup_video_encoder();
 	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
+	begin_video_decoding();
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);

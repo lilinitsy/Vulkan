@@ -302,6 +302,16 @@ class VulkanExample : public VulkanExampleBase
 	} encoder;
 
 
+	struct
+	{
+		const AVCodec *codec;
+		AVCodecContext *c;
+		AVCodecParserContext *parser;
+		AVFrame *frame;
+		AVPacket *packet;
+	} decoder;
+
+
 	VulkanExample();
 	~VulkanExample();
 	virtual void getEnabledFeatures();
@@ -323,6 +333,11 @@ class VulkanExample : public VulkanExampleBase
 	void setup_video_encoder();
 	void begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v);
 	void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile);
+
+
+	void setup_video_decoder();
+	void begin_video_decoding();
+	void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
 
 
 	void setup_opencl();
