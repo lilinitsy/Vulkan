@@ -311,6 +311,8 @@ class VulkanExample : public VulkanExampleBase
 		AVPacket *packet;
 	} decoder;
 
+	
+
 
 	VulkanExample();
 	~VulkanExample();

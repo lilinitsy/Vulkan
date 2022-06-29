@@ -442,9 +442,7 @@ VulkanExample::~VulkanExample()
 		vkDestroyFence(device, multiview_pass.wait_fences[i], nullptr);
 	}
 
-	avcodec_free_context(&encoder.c);
-	av_frame_free(&encoder.frame);
-	av_packet_free(&encoder.packet);
+
 
 }
 
@@ -1361,6 +1359,24 @@ void VulkanExample::setup_video_encoder()
 		exit(1);
 	}
 
+
+}
+
+
+void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
+{
+	int i;
+	uint8_t endcode[] = {0, 0, 1, 0xb7};
+	FILE *f;
+	std::string filename = "h264encoding" + std::to_string(numframes) + ".mp4";
+	f = fopen(filename.c_str(), "wb");
+	if(!f)
+	{
+		fprintf(stderr, "Could not open %s\n", filename.c_str());
+		exit(1);
+	}
+
+
 	encoder.c = avcodec_alloc_context3(encoder.codec);
 	if(!encoder.c)
 	{
@@ -1395,7 +1411,7 @@ void VulkanExample::setup_video_encoder()
 		av_opt_set(encoder.c->priv_data, "preset", "slow", 0);
 
 	/* open it */
-	ret = avcodec_open2(encoder.c, encoder.codec, NULL);
+	int ret = avcodec_open2(encoder.c, encoder.codec, NULL);
 	if(ret < 0)
 	{
 		throw std::runtime_error("Could not open codec!");
@@ -1421,26 +1437,10 @@ void VulkanExample::setup_video_encoder()
 		*/
 	ret = av_frame_get_buffer(encoder.frame, 0);
 
-}
-
-
-void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
-{
-	int i;
-	uint8_t endcode[] = {0, 0, 1, 0xb7};
-	FILE *f;
-	std::string filename = "h264encoding" + std::to_string(numframes) + ".mp4";
-	f = fopen(filename.c_str(), "wb");
-	if(!f)
-	{
-		fprintf(stderr, "Could not open %s\n", filename.c_str());
-		exit(1);
-	}
-
 
 	fflush(stdout);
 
-	int ret = av_frame_make_writable(encoder.frame);
+	ret = av_frame_make_writable(encoder.frame);
 	if(ret < 0)
 	{
 		throw std::runtime_error("Could not make av frame writeable");
@@ -1506,7 +1506,10 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 	}
 
 	printf("Video encoding successful\n");
-	//av_frame_free(&encoder.frame);
+
+	avcodec_free_context(&encoder.c);
+	av_frame_free(&encoder.frame);
+	av_packet_free(&encoder.packet);
 }
 
 
@@ -1938,7 +1941,7 @@ void VulkanExample::draw()
 	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
 	//setup_video_encoder();
 	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
-	begin_video_decoding();
+	//begin_video_decoding();
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
