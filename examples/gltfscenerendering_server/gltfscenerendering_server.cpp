@@ -1515,12 +1515,6 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 
 void VulkanExample::setup_video_decoder()
 {
-	decoder.packet = av_packet_alloc();
-	if(!decoder.packet)
-	{
-		throw std::runtime_error("Decoder: Could not alloc packet!");
-	}
-
 	// not sure if it's necessary to set end of buffer to 0
 	decoder.codec = avcodec_find_decoder(AV_CODEC_ID_H264);
 	if(!decoder.codec)
@@ -1534,17 +1528,6 @@ void VulkanExample::setup_video_decoder()
 		throw std::runtime_error("Decoder: Could not find parser");
 	}
 	
-	decoder.c = avcodec_alloc_context3(decoder.codec);
-	if(!decoder.c)
-	{
-		throw std::runtime_error("Decoder: Could not allocate video codec context");
-	}
-
-	// Open the codec
-	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
-	{
-		throw std::runtime_error("Decoder: Could not open codec");
-	}
 }
 
 static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *filename)
@@ -1564,6 +1547,9 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *f
 
 void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPacket *packet, const char *filename)
 {
+	
+
+
 	printf("%d Decode called\n", numframes);
 	char buf[1024];
 	int ret = avcodec_send_packet(decode_context, packet);
@@ -1601,6 +1587,24 @@ void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPac
 
 void VulkanExample::begin_video_decoding()
 {
+	decoder.c = avcodec_alloc_context3(decoder.codec);
+	if(!decoder.c)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video codec context");
+	}
+
+	// Open the codec
+	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
+	{
+		throw std::runtime_error("Decoder: Could not open codec");
+	}
+
+	decoder.packet = av_packet_alloc();
+	if(!decoder.packet)
+	{
+		throw std::runtime_error("Decoder: Could not alloc packet!");
+	}
+
 	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	uint8_t *data;
 	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
@@ -1659,6 +1663,11 @@ void VulkanExample::begin_video_decoding()
 	decode(decoder.c, decoder.frame, nullptr, outfilename.c_str());
 
 	fclose(f);
+
+
+	avcodec_free_context(&decoder.c);
+	av_frame_free(&decoder.frame);
+	av_packet_free(&decoder.packet);
 }
 
 
@@ -1941,7 +1950,7 @@ void VulkanExample::draw()
 	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
 	//setup_video_encoder();
 	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
-	//begin_video_decoding();
+	begin_video_decoding();
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
