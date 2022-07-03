@@ -1288,7 +1288,7 @@ void VulkanExample::prepare()
 	lefteye_fovea  = create_image_packet();
 	righteye_fovea = create_image_packet();
 	server         = Server();
-	//server.connect_to_client(PORT);
+	server.connect_to_client(PORT);
 	buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
@@ -1337,8 +1337,14 @@ void VulkanExample::encode(AVCodecContext *encode_context, AVFrame *frame, AVPac
 		}
 
 		printf("Write packet %3" PRId64 " (size=%5d)\n", packet->pts, packet->size);
-		fwrite(packet->data, 1, packet->size, outfile);
-		av_packet_unref(packet);
+
+		// send from here?
+		//fwrite(packet->data, 1, packet->size, outfile);
+		//av_packet_unref(packet);
+
+		send(server.client_fd[0], &packet->size, sizeof(packet->size), 0);
+		ssize_t sendret = send(server.client_fd[0], &packet->data[0], packet->size, 0);
+		printf("Sendret: %zd\n", sendret);
 	}
 }
 
@@ -1483,10 +1489,13 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 
 	/* encode the image */
 	encode(encoder.c, encoder.frame, encoder.packet, f);
+
+	printf("After first encode packet size: %d\n", encoder.packet->size);
 	
 
 	/* flush the encoder */
 	encode(encoder.c, NULL, encoder.packet, f);
+	printf("After SECOND encode packet size: %d\n", encoder.packet->size);
 
 	/* Add sequence end code to have a real MPEG file.
        It makes only sense because this tiny examples writes packets
@@ -1626,6 +1635,7 @@ void VulkanExample::begin_video_decoding()
 	do
 	{
 		int data_size = fread(inbuf, 1, INBUF_SIZE, f);
+		printf("DATA SIZE: %d\n", data_size);
 		if(ferror(f))
 		{
 			printf("Decoder (not crashing yet): ferror on reading file data\n");
@@ -1638,6 +1648,7 @@ void VulkanExample::begin_video_decoding()
 		{
 			printf("%d In loop of begin_decoder\n", numframes);
 			int ret = av_parser_parse2(decoder.parser, decoder.c, &decoder.packet->data, &decoder.packet->size, data, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+			printf("RET: %d\n", ret);
 			if(ret < 0)
 			{
 				throw std::runtime_error("Decoder: Error while parsing");
@@ -1950,7 +1961,7 @@ void VulkanExample::draw()
 	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
 	//setup_video_encoder();
 	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
-	begin_video_decoding();
+	// begin_video_decoding();
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);

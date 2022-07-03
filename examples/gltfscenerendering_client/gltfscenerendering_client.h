@@ -14,6 +14,16 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+
+ extern "C"
+{
+	#include <libavcodec/avcodec.h>
+		
+	#include <libavutil/opt.h>
+	#include <libavutil/imgutils.h>
+}
+
+
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYGLTF_NO_STB_IMAGE_WRITE
@@ -298,6 +308,15 @@ class VulkanExample : public VulkanExampleBase
 
 	bool enable_multiview = true;
 
+	struct
+	{
+		const AVCodec *codec;
+		AVCodecContext *c;
+		AVCodecParserContext *parser;
+		AVFrame *frame;
+		AVPacket *packet;
+	} decoder;
+
 
 	VulkanExample();
 	~VulkanExample();
@@ -314,6 +333,11 @@ class VulkanExample : public VulkanExampleBase
 
 	void setup_multiview();
 	void setup_multisample_target();
+
+	void setup_video_decoder();
+	void begin_video_decoding();
+	void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
+
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);

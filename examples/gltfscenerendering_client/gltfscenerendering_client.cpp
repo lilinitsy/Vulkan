@@ -15,6 +15,7 @@
  */
 
 #include "gltfscenerendering_client.h"
+#include <sys/socket.h>
 
 /*
         Vulkan glTF scene class
@@ -689,6 +690,163 @@ void VulkanExample::setup_multiview()
 		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbo_ci, nullptr, &multiview_pass.framebuffer));
 	}
 }
+
+
+
+void VulkanExample::setup_video_decoder()
+{
+	// not sure if it's necessary to set end of buffer to 0
+	decoder.codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+	if(!decoder.codec)
+	{
+		throw std::runtime_error("Decoder: Could not find H264 encoder");
+	}
+
+	decoder.parser = av_parser_init(decoder.codec->id);
+	if(!decoder.parser)
+	{
+		throw std::runtime_error("Decoder: Could not find parser");
+	}
+	
+}
+
+static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *filename)
+{
+    FILE *f;
+    int i;
+ 
+    f = fopen(filename,"wb");
+    fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
+    for (i = 0; i < ysize; i++)
+	{
+        fwrite(buf + i * wrap, 1, xsize, f);
+	}
+	fclose(f);
+}
+
+
+void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPacket *packet, const char *filename)
+{
+	
+	printf("%d Decode called\n", num_frames);
+	char buf[1024];
+	int ret = avcodec_send_packet(decode_context, packet);
+	if(ret < 0)
+	{
+		throw std::runtime_error("Decode: Error sending a packet");
+	}
+	
+	while(ret >= 0)
+	{
+		printf("%d In loop of decode\n", num_frames);
+		ret = avcodec_receive_frame(decode_context, frame);
+		printf("%d AV Frame Received\n", num_frames);
+		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+		{
+			printf("AV Error on ret after receiving frame; not writing output\n");
+			return;
+		}
+		else if(ret < 0)
+		{
+			throw std::runtime_error("Error during decoding");
+		}
+	
+		printf("saving frame %3d\n", decode_context->frame_number);
+		fflush(stdout);
+	
+		/* the picture is allocated by the decoder. no need to
+			free it */
+		snprintf(buf, sizeof(buf), "%s-%d", filename, decode_context->frame_number);
+		pgm_save(frame->data[0], frame->linesize[0],
+					frame->width, frame->height, buf);
+	}
+}
+
+
+void VulkanExample::begin_video_decoding()
+{
+	decoder.c = avcodec_alloc_context3(decoder.codec);
+	if(!decoder.c)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video codec context");
+	}
+
+	// Open the codec
+	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
+	{
+		throw std::runtime_error("Decoder: Could not open codec");
+	}
+
+	decoder.packet = av_packet_alloc();
+	if(!decoder.packet)
+	{
+		throw std::runtime_error("Decoder: Could not alloc packet!");
+	}
+
+	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	uint8_t *data;
+	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
+	std::string outfilename = "CLIENTpgmh264encoding" + std::to_string(num_frames) + ".pgm";
+
+
+	decoder.frame = av_frame_alloc();
+	if(!decoder.frame)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video frame");
+	}
+
+	int pktsize[1];
+	int num_bytes_encoded_packet = recv(client.socket_fd[0], pktsize, 1, MSG_WAITALL);
+	printf("Num_bytes_encoded_packet: %d\n", num_bytes_encoded_packet);
+
+	int eof;
+	do
+	{
+		// recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
+		
+		int data_size = recv(client.socket_fd[0], left_servbuf, num_bytes_encoded_packet, MSG_WAITALL);
+		//int data_size = fread(inbuf, 1, INBUF_SIZE, f);
+		//printf("DATA SIZE: %d\n", data_size);
+
+
+		eof = !data_size;
+		data = left_servbuf;
+		while(data_size > 0 || eof)
+		{
+			//printf("%d In loop of begin_decoder\n", num_frames);
+			int ret = av_parser_parse2(decoder.parser, decoder.c, &decoder.packet->data, &decoder.packet->size, data, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+			//printf("RET: %d\n", ret);
+			if(ret < 0)
+			{
+				throw std::runtime_error("Decoder: Error while parsing");
+			}
+
+			data += ret;
+			data_size -= ret;
+
+			if(decoder.packet->size)
+			{
+				decode(decoder.c, decoder.frame, decoder.packet, outfilename.c_str());
+			}
+
+			else if(eof)
+			{
+				break;
+			}
+		}
+	} while (!eof);
+
+	// flush decoder
+
+	decode(decoder.c, decoder.frame, nullptr, outfilename.c_str());
+
+
+	avcodec_free_context(&decoder.c);
+	av_frame_free(&decoder.frame);
+	av_packet_free(&decoder.packet);
+}
+
+
 
 void *receive_swapchain_image(void *devicerenderer)
 {
@@ -1460,6 +1618,7 @@ void VulkanExample::prepare()
 {
 	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
+	setup_video_decoder();
 	loadAssets();
 	setup_multiview();
 	prepareUniformBuffers();
@@ -1485,10 +1644,13 @@ void VulkanExample::draw()
 
 	// Create timers for individual threads and receive the swapchain images
 	gettimeofday(&tmp_start_timers.recv_swapchain_image1_start_time, nullptr);
-	int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
+	//int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
 
 	gettimeofday(&tmp_start_timers.recv_swapchain_image2_start_time, nullptr);
-	int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
+	//int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
+	begin_video_decoding();
+
+
 
 
 	// Multiview offscreen render
@@ -1510,8 +1672,8 @@ void VulkanExample::draw()
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
 	// Join after all the normal client rendering is done, at the latest point possible
-	pthread_join(vk_pthread.right_receive_image, nullptr);
-	pthread_join(vk_pthread.left_receive_image, nullptr);
+	//pthread_join(vk_pthread.right_receive_image, nullptr);
+	//pthread_join(vk_pthread.left_receive_image, nullptr);
 
 
 	timers.recv_swapchain_times_total.push_back(std::min(tmp_start_timers.recv_swapchain_time1, tmp_start_timers.recv_swapchain_time2));

@@ -45,7 +45,7 @@ struct Client
 			};
 			//inet_aton("192.168.1.6", (in_addr*) &server_address.sin_addr.s_addr);
 
-			inet_pton(AF_INET, "192.168.1.6", &(server_address.sin_addr));
+			//inet_pton(AF_INET, "192.168.1.6", &(server_address.sin_addr));
 			printf("Connected to server\n");
 
 

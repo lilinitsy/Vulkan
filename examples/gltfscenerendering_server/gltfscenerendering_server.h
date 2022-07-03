@@ -22,7 +22,6 @@ extern "C"
 		
 	#include <libavutil/opt.h>
 	#include <libavutil/imgutils.h>
-
 }
 
 #include <CL/opencl.hpp>
