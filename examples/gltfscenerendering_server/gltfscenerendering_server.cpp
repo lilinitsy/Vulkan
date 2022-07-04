@@ -1365,6 +1365,13 @@ void VulkanExample::setup_video_encoder()
 		exit(1);
 	}
 
+	encoder.c = avcodec_alloc_context3(encoder.codec);
+	if(!encoder.c)
+	{
+		fprintf(stderr, "Could not allocate video codec context\n");
+		exit(1);
+	}
+
 
 }
 
@@ -1375,20 +1382,7 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 	uint8_t endcode[] = {0, 0, 1, 0xb7};
 	FILE *f;
 	std::string filename = "h264encoding" + std::to_string(numframes) + ".mp4";
-	f = fopen(filename.c_str(), "wb");
-	if(!f)
-	{
-		fprintf(stderr, "Could not open %s\n", filename.c_str());
-		exit(1);
-	}
 
-
-	encoder.c = avcodec_alloc_context3(encoder.codec);
-	if(!encoder.c)
-	{
-		fprintf(stderr, "Could not allocate video codec context\n");
-		exit(1);
-	}
 
 	encoder.packet = av_packet_alloc();
 	if(!encoder.packet)
@@ -1494,7 +1488,7 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 	
 
 	/* flush the encoder */
-	encode(encoder.c, NULL, encoder.packet, f);
+	// encode(encoder.c, NULL, encoder.packet, f);
 	printf("After SECOND encode packet size: %d\n", encoder.packet->size);
 
 	/* Add sequence end code to have a real MPEG file.
@@ -1505,18 +1499,12 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
      */
 	if(encoder.codec->id == AV_CODEC_ID_MPEG1VIDEO || encoder.codec->id == AV_CODEC_ID_MPEG2VIDEO)
 	{
-		int fwrite_error = fwrite(endcode, 1, sizeof(endcode), f);
 	}
 
-	int fileclose = fclose(f);
-	if(fileclose != 0)
-	{
-		throw std::runtime_error("Could not close file stream");
-	}
 
 	printf("Video encoding successful\n");
 
-	avcodec_free_context(&encoder.c);
+	//avcodec_free_context(&encoder.c);
 	av_frame_free(&encoder.frame);
 	av_packet_free(&encoder.packet);
 }
