@@ -15,6 +15,7 @@
  */
 
 #include "gltfscenerendering_client.h"
+#include <cstdint>
 #include <sys/socket.h>
 
 /*
@@ -795,16 +796,16 @@ void VulkanExample::begin_video_decoding()
 		throw std::runtime_error("Decoder: Could not allocate video frame");
 	}
 
-	int pktsize[1];
-	int num_bytes_encoded_packet = recv(client.socket_fd[0], pktsize, 1, MSG_WAITALL);
-	printf("Num_bytes_encoded_packet: %d\n", num_bytes_encoded_packet);
+	uint32_t pktsize[1];
+	int num_bytes_encoded_packet = recv(client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
+	printf("Num_bytes_encoded_packet: %d\n", pktsize[0]);
 
 	int eof;
 	do
 	{
 		// recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
 		
-		int data_size = recv(client.socket_fd[0], left_servbuf, num_bytes_encoded_packet, MSG_WAITALL);
+		int data_size = recv(client.socket_fd[0], left_servbuf, pktsize[0], MSG_WAITALL);
 		//int data_size = fread(inbuf, 1, INBUF_SIZE, f);
 		//printf("DATA SIZE: %d\n", data_size);
 
