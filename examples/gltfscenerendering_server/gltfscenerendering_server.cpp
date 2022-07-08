@@ -1276,9 +1276,6 @@ void VulkanExample::updateUniformBuffers()
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
-	setup_video_encoder();
-	setup_video_decoder();
-
 	setup_opencl();
 	loadAssets();
 	setup_multiview();
@@ -1297,6 +1294,9 @@ void VulkanExample::prepare()
 	{
 		VK_CHECK_RESULT(vkCreateFence(device, &multiview_fence_ci, nullptr, &multiview_pass.wait_fences[i]));
 	}
+
+	setup_video_encoder();
+	setup_video_decoder();
 
 
 	prepared = true;
@@ -1341,7 +1341,7 @@ void VulkanExample::encode(AVCodecContext *encode_context, AVFrame *frame, AVPac
 		// send from here?
 		//fwrite(packet->data, 1, packet->size, outfile);
 		//av_packet_unref(packet);
-
+		printf("About to send packet\n");
 		send(server.client_fd[0], &packet->size, sizeof(packet->size), 0);
 		ssize_t sendret = send(server.client_fd[0], &packet->data[0], packet->size, 0);
 		printf("Sendret: %zd\n", sendret);
@@ -1483,13 +1483,10 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 
 	/* encode the image */
 	encode(encoder.c, encoder.frame, encoder.packet, f);
-
-	printf("After first encode packet size: %d\n", encoder.packet->size);
 	
 
 	/* flush the encoder */
 	// encode(encoder.c, NULL, encoder.packet, f);
-	printf("After SECOND encode packet size: %d\n", encoder.packet->size);
 
 	/* Add sequence end code to have a real MPEG file.
        It makes only sense because this tiny examples writes packets
@@ -1949,6 +1946,7 @@ void VulkanExample::draw()
 	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
 	//setup_video_encoder();
 	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
+	printf("Video encoding done\n");
 	// begin_video_decoding();
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
@@ -1959,9 +1957,9 @@ void VulkanExample::draw()
 
 	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
 
-	//float camera_buf[6];
+	float camera_buf[6];
 
-	//int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	// int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
 	//camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
 	//camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
 

@@ -709,6 +709,11 @@ void VulkanExample::setup_video_decoder()
 		throw std::runtime_error("Decoder: Could not find parser");
 	}
 	
+	decoder.c = avcodec_alloc_context3(decoder.codec);
+	if(!decoder.c)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video codec context");
+	}
 }
 
 static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *filename)
@@ -729,7 +734,7 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *f
 void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPacket *packet, const char *filename)
 {
 	
-	printf("%d Decode called\n", num_frames);
+	//printf("%d Decode called\n", num_frames);
 	char buf[1024];
 	int ret = avcodec_send_packet(decode_context, packet);
 	if(ret < 0)
@@ -739,12 +744,12 @@ void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPac
 	
 	while(ret >= 0)
 	{
-		printf("%d In loop of decode\n", num_frames);
+		//printf("%d In loop of decode\n", num_frames);
 		ret = avcodec_receive_frame(decode_context, frame);
-		printf("%d AV Frame Received\n", num_frames);
+		//printf("%d AV Frame Received\n", num_frames);
 		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 		{
-			printf("AV Error on ret after receiving frame; not writing output\n");
+			//printf("AV Error on ret after receiving frame; not writing output\n");
 			return;
 		}
 		else if(ret < 0)
@@ -752,7 +757,7 @@ void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPac
 			throw std::runtime_error("Error during decoding");
 		}
 	
-		printf("saving frame %3d\n", decode_context->frame_number);
+		//printf("saving frame %3d\n", decode_context->frame_number);
 		fflush(stdout);
 	
 		/* the picture is allocated by the decoder. no need to
@@ -766,12 +771,6 @@ void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPac
 
 void VulkanExample::begin_video_decoding()
 {
-	decoder.c = avcodec_alloc_context3(decoder.codec);
-	if(!decoder.c)
-	{
-		throw std::runtime_error("Decoder: Could not allocate video codec context");
-	}
-
 	// Open the codec
 	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
 	{
@@ -801,6 +800,7 @@ void VulkanExample::begin_video_decoding()
 	printf("Num_bytes_encoded_packet: %d\n", pktsize[0]);
 
 	int eof;
+	bool should_break = false;
 	do
 	{
 		// recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
@@ -830,19 +830,29 @@ void VulkanExample::begin_video_decoding()
 				decode(decoder.c, decoder.frame, decoder.packet, outfilename.c_str());
 			}
 
-			else if(eof)
+			else
 			{
+				printf("data_size: %d\n", data_size);
+				should_break = true;
 				break;
 			}
+
+			/*else if(eof)
+			{
+				printf("Eof found\n");
+				should_break = true;
+				break;
+			}*/
 		}
-	} while (!eof);
+	} while(!should_break);
+	printf("Can flush\n");
 
 	// flush decoder
 
-	decode(decoder.c, decoder.frame, nullptr, outfilename.c_str());
+	//decode(decoder.c, decoder.frame, nullptr, outfilename.c_str());
 
 
-	avcodec_free_context(&decoder.c);
+	//avcodec_free_context(&decoder.c);
 	av_frame_free(&decoder.frame);
 	av_packet_free(&decoder.packet);
 }
@@ -1650,6 +1660,20 @@ void VulkanExample::draw()
 	gettimeofday(&tmp_start_timers.recv_swapchain_image2_start_time, nullptr);
 	//int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
 	begin_video_decoding();
+	printf("Video decoding done\n");
+	
+	float camera_data[6] = {
+		camera.position.x,
+		camera.position.y,
+		camera.position.z,
+		camera.rotation.x,
+		camera.rotation.y,
+		camera.rotation.z,
+	};
+	
+	// printf("Sending\n");
+	// send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
+
 
 
 
@@ -1676,7 +1700,7 @@ void VulkanExample::draw()
 	//pthread_join(vk_pthread.right_receive_image, nullptr);
 	//pthread_join(vk_pthread.left_receive_image, nullptr);
 
-
+	/*
 	timers.recv_swapchain_times_total.push_back(std::min(tmp_start_timers.recv_swapchain_time1, tmp_start_timers.recv_swapchain_time2));
 	timers.mbps_total_bandwidth.push_back(tmp_start_timers.mbps_left + tmp_start_timers.mbps_right);
 
@@ -1808,11 +1832,11 @@ void VulkanExample::draw()
 	gettimeofday(&copy_swapchain_end_time, nullptr);
 
 	timers.copy_into_swapchain_time.push_back(vku::time_difference(copy_swapchain_start_time, copy_swapchain_end_time));
-
+	*/
 	// Submit frame to be drawn
 	VulkanExampleBase::submitFrame();
 
-	pthread_join(vk_pthread.send_thread, nullptr);
+	// pthread_join(vk_pthread.send_thread, nullptr);
 
 	total_fps += lastFPS;
 	num_frames++;
