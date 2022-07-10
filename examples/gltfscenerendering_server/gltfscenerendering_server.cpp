@@ -18,6 +18,7 @@
 #include "gltfscenerendering_server.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/codec.h>
+#include <libswscale/swscale.h>
 #include <stdexcept>
 #include <string>
 
@@ -1304,13 +1305,13 @@ void VulkanExample::prepare()
 
 
 // This will only encode one frame at a time
-void VulkanExample::encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile)
+static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile)
 {
 	//int ret;
 
 	/* send the frame to the encoder */
 	if(frame)
-		printf("Frame num: %d\tSend frame %3" PRId64 "\n", numframes, frame->pts);
+		printf("Frame num: %d\tSend frame %3" PRId64 "\n", ve->numframes, frame->pts);
 
 
 	int ret = avcodec_send_frame(encode_context, frame);
@@ -1342,8 +1343,8 @@ void VulkanExample::encode(AVCodecContext *encode_context, AVFrame *frame, AVPac
 		//fwrite(packet->data, 1, packet->size, outfile);
 		//av_packet_unref(packet);
 		printf("About to send packet\n");
-		send(server.client_fd[0], &packet->size, sizeof(packet->size), 0);
-		ssize_t sendret = send(server.client_fd[0], &packet->data[0], packet->size, 0);
+		send(ve->server.client_fd[0], &packet->size, sizeof(packet->size), 0);
+		ssize_t sendret = send(ve->server.client_fd[0], &packet->data[0], packet->size, 0);
 		printf("Sendret: %zd\n", sendret);
 	}
 }
@@ -1371,30 +1372,40 @@ void VulkanExample::setup_video_encoder()
 		fprintf(stderr, "Could not allocate video codec context\n");
 		exit(1);
 	}
-
-
 }
 
 
-void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
+struct EncodingData
 {
+	VulkanExample *ve;
+	uint8_t *y; // not going to b e used while testing ffmpeg colour space conversion
+	uint8_t *u; // not going to b e used while testing ffmpeg colour space conversion
+	uint8_t *v; // not going to b e used while testing ffmpeg colour space conversion
+};
+
+
+
+static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
+{
+	VulkanExample *ve = (VulkanExample*) void_encoding_data;
+
 	int i;
 	uint8_t endcode[] = {0, 0, 1, 0xb7};
 	FILE *f;
-	std::string filename = "h264encoding" + std::to_string(numframes) + ".mp4";
+	std::string filename = "h264encoding" + std::to_string(ve->numframes) + ".mp4";
 
 
-	encoder.packet = av_packet_alloc();
-	if(!encoder.packet)
+	ve->encoder.packet = av_packet_alloc();
+	if(!ve->encoder.packet)
 		exit(1);
 
 	/* put sample parameters */
 	//c->bit_rate = 400000;
 	/* resolution must be a multiple of two */
-	encoder.c->width  = FOVEAWIDTH;
-	encoder.c->height = FOVEAHEIGHT;
+	ve->encoder.c->width  = FOVEAWIDTH;
+	ve->encoder.c->height = FOVEAHEIGHT;
 	/* frames per second */
-	encoder.c->time_base = (AVRational){1, 60};
+	ve->encoder.c->time_base = (AVRational){1, 60};
 	// c->framerate = (AVRational){25, 1};
 
 	/* emit one intra frame every ten frames
@@ -1405,24 +1416,24 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
      */
 	// c->gop_size		= 10;
 	// c->max_b_frames = 1;
-	encoder.c->pix_fmt		= AV_PIX_FMT_YUV444P;
+	ve->encoder.c->pix_fmt		= AV_PIX_FMT_YUV444P;
 
-	if(encoder.codec->id == AV_CODEC_ID_H264)
-		av_opt_set(encoder.c->priv_data, "preset", "slow", 0);
+	if(ve->encoder.codec->id == AV_CODEC_ID_H264)
+		av_opt_set(ve->encoder.c->priv_data, "preset", "slow", 0);
 
 	/* open it */
-	int ret = avcodec_open2(encoder.c, encoder.codec, NULL);
+	int ret = avcodec_open2(ve->encoder.c,ve-> encoder.codec, NULL);
 	if(ret < 0)
 	{
 		throw std::runtime_error("Could not open codec!");
 	}
 
-	encoder.frame = av_frame_alloc();
-	encoder.frame->format = AV_PIX_FMT_YUV444P;
-	encoder.frame->width = FOVEAWIDTH;
-	encoder.frame->height = FOVEAHEIGHT;
-	encoder.frame->pict_type = AV_PICTURE_TYPE_I;
-	av_frame_get_buffer(encoder.frame, 1);
+	ve->encoder.frame = av_frame_alloc();
+	ve->encoder.frame->format = AV_PIX_FMT_YUV444P;
+	ve->encoder.frame->width = FOVEAWIDTH;
+	ve->encoder.frame->height = FOVEAHEIGHT;
+	ve->encoder.frame->pict_type = AV_PICTURE_TYPE_I;
+	av_frame_get_buffer(ve->encoder.frame, 1);
 
 
 	/* Make sure the frame data is writable.
@@ -1435,12 +1446,15 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 		av_frame_make_writable() checks that and allocates a new buffer
 		for the frame only if necessary.
 		*/
-	ret = av_frame_get_buffer(encoder.frame, 0);
+	ret = av_frame_get_buffer(ve->encoder.frame, 0);
+
+	// Get the context or whatever
+	SwsContext *sws_ctx = sws_getContext(ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_RGBA, ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
 
 
 	fflush(stdout);
 
-	ret = av_frame_make_writable(encoder.frame);
+	ret = av_frame_make_writable(ve->encoder.frame);
 	if(ret < 0)
 	{
 		throw std::runtime_error("Could not make av frame writeable");
@@ -1457,17 +1471,22 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 		frame.
 		*/
 	/* Y */
-	int idx = 0;
-	for(int y = 0; y < encoder.c->height; y++)
+	/*int idx = 0;
+	for(int y = 0; y < ve->encoder.c->height; y++)
 	{
-		for(int x = 0; x < encoder.c->width; x++)
+		for(int x = 0; x < ve->encoder.c->width; x++)
 		{
-			encoder.frame->data[0][y * encoder.frame->linesize[0] + x] = luminance_y[idx];
-			encoder.frame->data[1][y * encoder.frame->linesize[1] + x] = bp_u[idx];
-			encoder.frame->data[2][y * encoder.frame->linesize[2] + x] = rp_v[idx];
+			ve->encoder.frame->data[0][y * ve->encoder.frame->linesize[0] + x] = y[idx];
+			ve->encoder.frame->data[1][y * ve->encoder.frame->linesize[1] + x] = u[idx];
+			ve->encoder.frame->data[2][y * ve->encoder.frame->linesize[2] + x] = v[idx];
 			idx++;
 		}
 	}
+	*/
+
+
+
+
 
 	/* Cb and Cr, 420 format */
 	/*for(int y = 0; y < encoder.c->height; y++)
@@ -1478,11 +1497,16 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
 			encoder.frame->data[2][y * encoder.frame->linesize[2] + x] = 64 + x + i * 5;
 		}
 	}*/
+	
+	int in_line_size[1] = {4 * ve->encoder.c->width};
+	uint8_t *in_data[1] = {(uint8_t*) ve->lefteye_fovea.data};
+	ve->encoder.frame->pts = 0;
+	sws_scale(sws_ctx, in_data, in_line_size, 0, 
+	ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
 
-	encoder.frame->pts = 0;
 
 	/* encode the image */
-	encode(encoder.c, encoder.frame, encoder.packet, f);
+	encode(ve, ve->encoder.c, ve->encoder.frame, ve->encoder.packet, f);
 	
 
 	/* flush the encoder */
@@ -1494,16 +1518,16 @@ void VulkanExample::begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, ui
        codecs. To create a valid file, you usually need to write packets
        into a proper file format or protocol; see muxing.c.
      */
-	if(encoder.codec->id == AV_CODEC_ID_MPEG1VIDEO || encoder.codec->id == AV_CODEC_ID_MPEG2VIDEO)
-	{
-	}
+
 
 
 	printf("Video encoding successful\n");
 
 	//avcodec_free_context(&encoder.c);
-	av_frame_free(&encoder.frame);
-	av_packet_free(&encoder.packet);
+	av_frame_free(&ve->encoder.frame);
+	av_packet_free(&ve->encoder.packet);
+
+	return nullptr;
 }
 
 
@@ -1940,14 +1964,17 @@ void VulkanExample::draw()
 	timers.copy_image_time.push_back(vku::time_difference(copystarttime, copyendtime));
 
 	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-	uint8_t out_Y_h[input_framesize_bytes / 4];
-	uint8_t out_U_h[input_framesize_bytes / 4];
-	uint8_t out_V_h[input_framesize_bytes / 4];
-	rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, out_Y_h, out_U_h, out_V_h, input_framesize_bytes);
+	uint8_t left_out_Y_h[input_framesize_bytes / 4];
+	uint8_t left_out_U_h[input_framesize_bytes / 4];
+	uint8_t left_out_V_h[input_framesize_bytes / 4];
+	//rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, left_out_Y_h, left_out_U_h, left_out_V_h, input_framesize_bytes);
 	//setup_video_encoder();
-	begin_video_encoding(out_Y_h, out_U_h, out_V_h);
+
+
+	int left_image_send_encode = pthread_create(&vk_pthread.left_send_image, nullptr, begin_video_encoding, this);
+	pthread_join(vk_pthread.left_send_image, nullptr);
+	//begin_video_encoding(left_out_Y_h, left_out_U_h, left_out_V_h);
 	printf("Video encoding done\n");
-	// begin_video_decoding();
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
@@ -1957,12 +1984,12 @@ void VulkanExample::draw()
 
 	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
 
-	float camera_buf[6];
+/*	float camera_buf[6];
 
-	// int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
-	//camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
-	//camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
-
+	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
+	camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
+*/
 
 	/*if(numframes == 1024)
 	{

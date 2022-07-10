@@ -771,17 +771,22 @@ void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPac
 
 void VulkanExample::begin_video_decoding()
 {
+	printf("In begin_video_decoding\n");
 	// Open the codec
 	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
 	{
 		throw std::runtime_error("Decoder: Could not open codec");
 	}
 
+	printf("Codec opened\n");
+
 	decoder.packet = av_packet_alloc();
 	if(!decoder.packet)
 	{
 		throw std::runtime_error("Decoder: Could not alloc packet!");
 	}
+
+	printf("Packet alloc'd\n");
 
 	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	uint8_t *data;
@@ -794,6 +799,8 @@ void VulkanExample::begin_video_decoding()
 	{
 		throw std::runtime_error("Decoder: Could not allocate video frame");
 	}
+
+	printf("Frame alloc'd\n");
 
 	uint32_t pktsize[1];
 	int num_bytes_encoded_packet = recv(client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
@@ -1625,10 +1632,143 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 }
 
 
+
+
+void VulkanExample::setup_opencl()
+{
+	std::vector<cl::Platform> all_platforms;
+	cl::Platform::get(&all_platforms);
+	if(all_platforms.size() == 0)
+	{
+		throw std::runtime_error("No OpenCL platforms found");
+	}
+
+ 	cl.platform = all_platforms[0];
+	printf("Using platform: %s\n", cl.platform.getInfo<CL_PLATFORM_NAME>().c_str());
+
+	std::vector<cl::Device> all_devices;
+	cl.platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
+	cl.device = all_devices[0];
+	printf("Using OpenCL device: %s\n", cl.device.getInfo<CL_DEVICE_NAME>().c_str());
+
+	cl::Context ctx({cl.device});
+	cl.context = ctx;
+
+	cl::CommandQueue cmdqueue(cl.context, cl.device);
+	cl.queue = cmdqueue;
+
+	// Load kernel
+	std::string rgb_to_rgba_kernel_str_code = 
+		"kernel void cl_rgba_to_rgb(global const char *in, global char *out_Y, global char *out_U, global char *out_V, global char *out_A)"
+		"{"
+		"	int in_idx = get_global_id(0);"
+
+		"	if(in_idx % 4 == 0)"
+		"	{"
+		"		out_Y[in_idx / 4] = in[in_idx];"
+		"	}"
+
+		"	else if(in_idx % 4 == 1)"
+		"	{"
+		"		out_U[in_idx / 4] = in[in_idx];"
+		"	}"
+
+		"	else if(in_idx % 4 == 2)"
+		"	{"
+		"		out_V[in_idx / 4] = in[in_idx];"
+		"	}"
+
+		"	else if(in_idx % 4 == 3)"
+		"	{"
+		"		out_A[in_idx / 4] = in[in_idx];"
+		"	}"
+
+		"	barrier(CLK_GLOBAL_MEM_FENCE);"
+		"}";
+
+	cl.sources.push_back({rgb_to_rgba_kernel_str_code.c_str(), rgb_to_rgba_kernel_str_code.length()});
+	cl::Program program(cl.context, cl.sources);
+	cl.alpha_addition_program = program;
+
+	if(cl.alpha_addition_program.build({cl.device}) != CL_SUCCESS)
+	{
+		std::cout << "Error building: " << cl.alpha_addition_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
+		exit(-1);
+	}
+
+
+	// Tests for kernel
+	char *in_h = new char[16];
+	char *out_Y_h = new char[4];
+	char *out_U_h = new char[4];
+	char *out_V_h = new char[4];
+
+	for(uint32_t i = 0; i < 16; i++)
+	{
+		if(i % 4 == 0)
+		{
+			in_h[i] = (char) 1;
+		}
+
+		else if(i % 4 == 1)
+		{
+			in_h[i] = (char) 2;
+		}
+		
+		else if(i % 4 == 2)
+		{
+			in_h[i] = (char) 3;
+		}
+
+		else
+		{
+			in_h[i] = (char) 4;
+		}
+	}
+	
+
+	for(uint32_t i = 0; i < 16; i++)
+	{
+		printf("%d in_h: %d\n", i, in_h[i]);
+	}
+
+	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(char) * 16);
+	cl::Buffer out_Y_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
+	cl::Buffer out_U_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
+	cl::Buffer out_V_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
+
+	cl.queue.enqueueWriteBuffer(in_d, CL_TRUE, 0, sizeof(char) * 16, in_h);
+
+	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_addition_program, "cl_rgba_to_rgb"));
+	cl::NDRange global(16);
+	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_Y_d, out_U_d, out_V_d).wait();
+
+	cl.queue.enqueueReadBuffer(out_Y_d, CL_TRUE, 0, sizeof(char) * 4, out_Y_h);
+	cl.queue.enqueueReadBuffer(out_U_d, CL_TRUE, 0, sizeof(char) * 4, out_U_h);
+	cl.queue.enqueueReadBuffer(out_V_d, CL_TRUE, 0, sizeof(char) * 4, out_V_h);
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_Y_h: %d\n", i, out_Y_h[i]);
+	}
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_U_h: %d\n", i, out_U_h[i]);
+	}
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_V_h: %d\n", i, out_V_h[i]);
+	}
+}
+
+
 void VulkanExample::prepare()
 {
 	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
+	//setup_opencl();
 	setup_video_decoder();
 	loadAssets();
 	setup_multiview();
@@ -1662,18 +1802,6 @@ void VulkanExample::draw()
 	begin_video_decoding();
 	printf("Video decoding done\n");
 	
-	float camera_data[6] = {
-		camera.position.x,
-		camera.position.y,
-		camera.position.z,
-		camera.rotation.x,
-		camera.rotation.y,
-		camera.rotation.z,
-	};
-	
-	// printf("Sending\n");
-	// send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
-
 
 
 
@@ -1837,6 +1965,19 @@ void VulkanExample::draw()
 	VulkanExampleBase::submitFrame();
 
 	// pthread_join(vk_pthread.send_thread, nullptr);
+
+	float camera_data[6] = {
+		camera.position.x,
+		camera.position.y,
+		camera.position.z,
+		camera.rotation.x,
+		camera.rotation.y,
+		camera.rotation.z,
+	};
+	
+	// printf("Sending\n");
+	// send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
+
 
 	total_fps += lastFPS;
 	num_frames++;

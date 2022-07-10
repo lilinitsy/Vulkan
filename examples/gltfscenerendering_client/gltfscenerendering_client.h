@@ -23,6 +23,8 @@
 	#include <libavutil/imgutils.h>
 }
 
+#include <CL/opencl.hpp>
+
 
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
@@ -310,6 +312,16 @@ class VulkanExample : public VulkanExampleBase
 
 	struct
 	{
+		cl::Context context;
+		cl::Platform platform;
+		cl::Device device;
+		cl::CommandQueue queue;
+		cl::Program alpha_addition_program;
+		cl::Program::Sources sources;
+	} cl;
+
+	struct
+	{
 		const AVCodec *codec;
 		AVCodecContext *c;
 		AVCodecParserContext *parser;
@@ -337,6 +349,9 @@ class VulkanExample : public VulkanExampleBase
 	void setup_video_decoder();
 	void begin_video_decoding();
 	void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
+
+	void setup_opencl();
+	void rgb_to_rgba_opencl(const uint8_t *__restrict in_h, uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, size_t len);
 
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);

@@ -19,7 +19,7 @@
 extern "C"
 {
 	#include <libavcodec/avcodec.h>
-		
+	#include <libswscale/swscale.h>		
 	#include <libavutil/opt.h>
 	#include <libavutil/imgutils.h>
 }
@@ -332,8 +332,8 @@ class VulkanExample : public VulkanExampleBase
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
 
 	void setup_video_encoder();
-	void begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v);
-	void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile);
+	//void begin_video_encoding(uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v);
+	//void encode(AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile);
 
 
 	void setup_video_decoder();
