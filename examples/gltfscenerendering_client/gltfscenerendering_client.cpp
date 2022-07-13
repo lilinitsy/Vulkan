@@ -16,6 +16,8 @@
 
 #include "gltfscenerendering_client.h"
 #include <cstdint>
+#include <libavutil/pixfmt.h>
+#include <libswscale/swscale.h>
 #include <sys/socket.h>
 
 /*
@@ -789,7 +791,6 @@ void VulkanExample::begin_video_decoding()
 	printf("Packet alloc'd\n");
 
 	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	uint8_t *data;
 	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
 	std::string outfilename = "CLIENTpgmh264encoding" + std::to_string(num_frames) + ".pgm";
 
@@ -799,6 +800,10 @@ void VulkanExample::begin_video_decoding()
 	{
 		throw std::runtime_error("Decoder: Could not allocate video frame");
 	}
+
+
+	//SwsContext *sws_ctx = sws_getContext(decoder.c->width, decoder.c->height, AV_PIX_FMT_YUV444P, decoder.c->width, decoder.c->height, AV_PIX_FMT_RGBA, SWS_FAST_BILINEAR, 0, 0, 0);
+
 
 	printf("Frame alloc'd\n");
 
@@ -815,25 +820,28 @@ void VulkanExample::begin_video_decoding()
 		int data_size = recv(client.socket_fd[0], left_servbuf, pktsize[0], MSG_WAITALL);
 		//int data_size = fread(inbuf, 1, INBUF_SIZE, f);
 		//printf("DATA SIZE: %d\n", data_size);
+		// maybe need to make a new AVFrame and do smth with that? seems slow
 
-
+		int in_line_size[1] = {4 * decoder.c->width};
 		eof = !data_size;
-		data = left_servbuf;
+		uint8_t *data[1] = {left_servbuf};
+		decoder.frame->format = AV_PIX_FMT_RGBA;
 		while(data_size > 0 || eof)
 		{
 			//printf("%d In loop of begin_decoder\n", num_frames);
-			int ret = av_parser_parse2(decoder.parser, decoder.c, &decoder.packet->data, &decoder.packet->size, data, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+			int ret = av_parser_parse2(decoder.parser, decoder.c, &decoder.packet->data, &decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
 			//printf("RET: %d\n", ret);
 			if(ret < 0)
 			{
 				throw std::runtime_error("Decoder: Error while parsing");
 			}
 
-			data += ret;
+			data[0] += ret;
 			data_size -= ret;
 
 			if(decoder.packet->size)
 			{
+				//sws_scale(sws_ctx, data, in_line_size, 0, decoder.c->height, decoder.frame->data, decoder.frame->linesize);
 				decode(decoder.c, decoder.frame, decoder.packet, outfilename.c_str());
 			}
 

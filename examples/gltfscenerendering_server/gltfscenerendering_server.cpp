@@ -16,8 +16,10 @@
 
 
 #include "gltfscenerendering_server.h"
+#include "vk_utils.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/codec.h>
+#include <libavutil/opt.h>
 #include <libswscale/swscale.h>
 #include <stdexcept>
 #include <string>
@@ -1356,7 +1358,7 @@ void VulkanExample::setup_video_encoder()
 	int ret;
 
 	filename   = "file.mp4";
-	codec_name = "nvenc_h264";
+	codec_name = "h264_nvenc";
 
 	/* find the mpeg1video encoder */
 	encoder.codec = avcodec_find_encoder_by_name(codec_name);
@@ -1417,9 +1419,11 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	// c->gop_size		= 10;
 	// c->max_b_frames = 1;
 	ve->encoder.c->pix_fmt		= AV_PIX_FMT_YUV444P;
+	//ve->encoder.
 
 	if(ve->encoder.codec->id == AV_CODEC_ID_H264)
 		av_opt_set(ve->encoder.c->priv_data, "preset", "slow", 0);
+	av_opt_set(ve->encoder.c->priv_data, "crf", "17", AV_OPT_SEARCH_CHILDREN);
 
 	/* open it */
 	int ret = avcodec_open2(ve->encoder.c,ve-> encoder.codec, NULL);
@@ -1465,44 +1469,10 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 		printf("av_frame_make_writeable successful\n");
 	}
 
-	/* Prepare a dummy image.
-		In real code, this is where you would have your own logic for
-		filling the frame. FFmpeg does not care what you put in the
-		frame.
-		*/
-	/* Y */
-	/*int idx = 0;
-	for(int y = 0; y < ve->encoder.c->height; y++)
-	{
-		for(int x = 0; x < ve->encoder.c->width; x++)
-		{
-			ve->encoder.frame->data[0][y * ve->encoder.frame->linesize[0] + x] = y[idx];
-			ve->encoder.frame->data[1][y * ve->encoder.frame->linesize[1] + x] = u[idx];
-			ve->encoder.frame->data[2][y * ve->encoder.frame->linesize[2] + x] = v[idx];
-			idx++;
-		}
-	}
-	*/
-
-
-
-
-
-	/* Cb and Cr, 420 format */
-	/*for(int y = 0; y < encoder.c->height; y++)
-	{
-		for(int x = 0; x < encoder.c->width; x++)
-		{
-			encoder.frame->data[1][y * encoder.frame->linesize[1] + x] = 128 + y + i * 2;
-			encoder.frame->data[2][y * encoder.frame->linesize[2] + x] = 64 + x + i * 5;
-		}
-	}*/
-	
 	int in_line_size[1] = {4 * ve->encoder.c->width};
 	uint8_t *in_data[1] = {(uint8_t*) ve->lefteye_fovea.data};
 	ve->encoder.frame->pts = 0;
-	sws_scale(sws_ctx, in_data, in_line_size, 0, 
-	ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
+	sws_scale(sws_ctx, in_data, in_line_size, 0, ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
 
 
 	/* encode the image */
@@ -1970,11 +1940,19 @@ void VulkanExample::draw()
 	//rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, left_out_Y_h, left_out_U_h, left_out_V_h, input_framesize_bytes);
 	//setup_video_encoder();
 
+	timeval encodestarttime;
+	timeval encodeendtime;
+	gettimeofday(&encodestarttime, nullptr);
+	
 
 	int left_image_send_encode = pthread_create(&vk_pthread.left_send_image, nullptr, begin_video_encoding, this);
 	pthread_join(vk_pthread.left_send_image, nullptr);
 	//begin_video_encoding(left_out_Y_h, left_out_U_h, left_out_V_h);
+	gettimeofday(&encodeendtime, nullptr);
 	printf("Video encoding done\n");
+
+	float encodetimediff = vku::time_difference((encodestarttime), encodeendtime);
+	printf("Encode time diff: %f\n", encodetimediff);
 
 	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
 	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);

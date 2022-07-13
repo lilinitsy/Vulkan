@@ -13,6 +13,7 @@
 
             # FFmpeg
             pkgs.ffmpeg
+            pkgs.nv-codec-headers-11
 
             # OpenCL
             pkgs.ocl-icd

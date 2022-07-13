@@ -24,6 +24,8 @@ extern "C"
 	#include <libavutil/imgutils.h>
 }
 
+#include <ffnvcodec/nvEncodeAPI.h>
+
 #include <CL/opencl.hpp>
 
 
