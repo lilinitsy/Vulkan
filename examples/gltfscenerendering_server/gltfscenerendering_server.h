@@ -14,6 +14,10 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+
+#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_beta.h>
+
 #include <sys/time.h>
 
 extern "C"
@@ -37,6 +41,8 @@ extern "C"
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #define TINYGLTF_ANDROID_LOAD_FROM_ASSETS
 #endif
+
+
 #include "tiny_gltf.h"
 
 #include "imagepacket.h"
@@ -248,6 +254,8 @@ class VulkanExample : public VulkanExampleBase
 	ImagePacket lefteye_fovea;
 	ImagePacket righteye_fovea;
 
+	ImagePacket foveal_regions;
+
 	Server server;
 
 	struct
@@ -330,7 +338,7 @@ class VulkanExample : public VulkanExampleBase
 
 	void setup_multiview();
 	ImagePacket create_image_packet();
-	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset);
+	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D left_offset, VkOffset3D right_offset);
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
 
 	void setup_video_encoder();

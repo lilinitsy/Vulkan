@@ -790,7 +790,7 @@ void VulkanExample::begin_video_decoding()
 
 	printf("Packet alloc'd\n");
 
-	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	int INBUF_SIZE = FOVEAWIDTH * 2 * FOVEAHEIGHT * 3;
 	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
 	std::string outfilename = "CLIENTpgmh264encoding" + std::to_string(num_frames) + ".pgm";
 

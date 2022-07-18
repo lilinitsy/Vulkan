@@ -17,6 +17,7 @@
 
 #include "gltfscenerendering_server.h"
 #include "vk_utils.h"
+#include "vulkan/vulkan_core.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/codec.h>
 #include <libavutil/opt.h>
@@ -1279,14 +1280,13 @@ void VulkanExample::updateUniformBuffers()
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
-	setup_opencl();
+	//setup_opencl();
 	loadAssets();
 	setup_multiview();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	lefteye_fovea  = create_image_packet();
-	righteye_fovea = create_image_packet();
+	foveal_regions = create_image_packet();
 	server         = Server();
 	server.connect_to_client(PORT);
 	buildCommandBuffers();
@@ -1404,7 +1404,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	/* put sample parameters */
 	//c->bit_rate = 400000;
 	/* resolution must be a multiple of two */
-	ve->encoder.c->width  = FOVEAWIDTH;
+	ve->encoder.c->width  = 2 * FOVEAWIDTH;
 	ve->encoder.c->height = FOVEAHEIGHT;
 	/* frames per second */
 	ve->encoder.c->time_base = (AVRational){1, 60};
@@ -1434,7 +1434,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 
 	ve->encoder.frame = av_frame_alloc();
 	ve->encoder.frame->format = AV_PIX_FMT_YUV444P;
-	ve->encoder.frame->width = FOVEAWIDTH;
+	ve->encoder.frame->width = 2 * FOVEAWIDTH;
 	ve->encoder.frame->height = FOVEAHEIGHT;
 	ve->encoder.frame->pict_type = AV_PICTURE_TYPE_I;
 	av_frame_get_buffer(ve->encoder.frame, 1);
@@ -1469,15 +1469,20 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 		printf("av_frame_make_writeable successful\n");
 	}
 
-	int in_line_size[1] = {4 * ve->encoder.c->width};
-	uint8_t *in_data[1] = {(uint8_t*) ve->lefteye_fovea.data};
+	vkMapMemory(ve->device, ve->foveal_regions.buffer.memory, 0, 2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->foveal_regions.data);
+
+	int in_line_size[1] = {2 * ve->encoder.c->width};
+	uint8_t *in_data[1] = {(uint8_t*) ve->foveal_regions.data};
 	ve->encoder.frame->pts = 0;
+	printf("Right before sws_scale\n");
 	sws_scale(sws_ctx, in_data, in_line_size, 0, ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
 
+	printf("sws_scale successful\n");
 
 	/* encode the image */
 	encode(ve, ve->encoder.c, ve->encoder.frame, ve->encoder.packet, f);
 	
+	vkUnmapMemory(ve->device, ve->foveal_regions.buffer.memory);
 
 	/* flush the encoder */
 	// encode(encoder.c, NULL, encoder.packet, f);
@@ -1926,9 +1931,8 @@ void VulkanExample::draw()
 	timeval copyendtime;
 	gettimeofday(&copystarttime, nullptr);
 
-	// Now copy the image packet back; Could probably copy in parallel...
-	lefteye_fovea  = copy_image_to_packet(swapChain.images[currentBuffer], lefteye_fovea, lefteye_copy_offset);
-	righteye_fovea = copy_image_to_packet(swapChain.images[currentBuffer], righteye_fovea, righteye_copy_offset);
+	// Now copy the image packet back
+	foveal_regions = copy_image_to_packet(swapChain.images[currentBuffer], foveal_regions, lefteye_copy_offset, righteye_copy_offset);
 
 	gettimeofday(&copyendtime, nullptr);
 	timers.copy_image_time.push_back(vku::time_difference(copystarttime, copyendtime));
@@ -1947,7 +1951,7 @@ void VulkanExample::draw()
 
 	int left_image_send_encode = pthread_create(&vk_pthread.left_send_image, nullptr, begin_video_encoding, this);
 	pthread_join(vk_pthread.left_send_image, nullptr);
-	//begin_video_encoding(left_out_Y_h, left_out_U_h, left_out_V_h);
+
 	gettimeofday(&encodeendtime, nullptr);
 	printf("Video encoding done\n");
 
@@ -1962,77 +1966,16 @@ void VulkanExample::draw()
 
 	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
 
-/*	float camera_buf[6];
-
-	int client_read = recv(server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
-	camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
-	camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
-*/
-
-	/*if(numframes == 1024)
-	{
-		// Write client data
-		int len = 1024 * sizeof(float) * 7;
-		float databuf[len];
-		int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
-
-		std::string filename = "CLIENTDATA.tsv";
-		std::ofstream file(filename, std::ios::out | std::ios::binary);
-		file << "recvswapchain\tsendcamera\talphaadd\tcopyintoswap\tnetframetime\tfps\tmbps\n";
-
-		for(uint32_t i = 1; i < 1000; i++)
-		{
-			std::string datapointstr = std::to_string(databuf[i]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 1]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 2]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 3]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 4]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 5]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 6]) + "\n";
-
-			file << datapointstr;
-		}
-
-		file.close();
-
-		// Write server data
-		filename = "SERVERDATA.tsv";
-		std::ofstream file2(filename, std::ios::out | std::ios::binary);
-		file2 << "drawtime\talpharemove\tcopytime\n";
-
-		for(uint32_t i = 1; i < 1000; i++)
-		{
-			std::string datapointstr = std::to_string(timers.drawtime[i]) + "\t" +
-			                           std::to_string(timers.remove_alpha_time[i]) + "\t" +
-			                           std::to_string(timers.copy_image_time[i]) + "\n";
-
-			file2 << datapointstr;
-		}
-
-		file2.close();
-	}*/
-
-
 	numframes++;
 }
 
 
-ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D offset)
+ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D left_offset, VkOffset3D right_offset)
 {
 	ImagePacket dst                = image_packet;
 	VkCommandBuffer copy_cmdbuffer = vku::begin_command_buffer(device, cmdPool);
 
 	//printf("Command buffer begun\n");
-
-	// Transition dst image from general to transfer dst optimal
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
-	                             dst.image,
-	                             0,
-	                             VK_ACCESS_TRANSFER_WRITE_BIT,
-	                             VK_IMAGE_LAYOUT_GENERAL,
-	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT,
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 	// Transition swapchain image from present to source transfer layout
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
@@ -2047,17 +1990,85 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 	//printf("Swapchain transitioned to read only VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL\n");
 
 
-	// Copy image
-	VkImageCopy image_copy_region{};
+	VkImageSubresourceLayers image_subresource = {
+		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseArrayLayer = 0,
+		.layerCount     = 1,
+	};
+
+	// Midpoint areas....
+	int32_t midpoint_of_eye_x = SERVERWIDTH / 4;
+	int32_t midpoint_of_eye_y = SERVERHEIGHT / 2;
+
+	// Get the top left point for left eye
+	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	// Get the top left point for right eye -- y is same
+	int32_t topleft_righteye_x = (SERVERWIDTH / 2) + midpoint_of_eye_x - (SERVERHEIGHT / 2);
+
+	// Image offsets
+	VkOffset3D lefteye_image_offset = {
+		.x = topleft_lefteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+	VkOffset3D righteye_image_offset = {
+		.x = topleft_righteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+	// Create the vkbufferimagecopy pregions
+	VkBufferImageCopy left_copy_region = {
+		.bufferOffset      = 0,
+		.bufferRowLength   = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource  = image_subresource,
+		.imageOffset       = lefteye_image_offset,
+		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
+
+	VkBufferImageCopy right_copy_region = {
+		.bufferOffset      = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t),
+		.bufferRowLength   = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource  = image_subresource,
+		.imageOffset       = righteye_image_offset,
+		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
+
+	vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+		src_image, 
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+		foveal_regions.buffer.buffer, 
+		1, 
+		&left_copy_region);
+	
+	vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+		src_image, 
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+		foveal_regions.buffer.buffer, 
+		1, 
+		&right_copy_region);
+
+
+	// Copy left image
+	/*VkImageCopy image_copy_region{};
 	image_copy_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	image_copy_region.srcSubresource.layerCount = 1;
 	image_copy_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	image_copy_region.dstSubresource.layerCount = 1;
-	image_copy_region.srcOffset                 = offset;
+	image_copy_region.srcOffset                 = left_offset;
 	image_copy_region.extent.width              = FOVEAWIDTH;
 	image_copy_region.extent.height             = FOVEAHEIGHT;
 	image_copy_region.extent.depth              = 1;
 
+
+
+
+	
 	vkCmdCopyImage(copy_cmdbuffer,
 	               src_image,
 	               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -2065,19 +2076,16 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 	               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 	               1,
 	               &image_copy_region);
-	//printf("vkImageCopy performed\n");
-	// Transition dst image to general layout -- lets us map the image memory
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
-	                             dst.image,
-	                             VK_ACCESS_TRANSFER_WRITE_BIT,
-	                             VK_ACCESS_MEMORY_READ_BIT,
-	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	                             VK_IMAGE_LAYOUT_GENERAL,
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT,
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-	//printf("dst image transitioned\n");
-
+	
+	// Copy right region -- only need to change srcOffset
+	image_copy_region.srcOffset = right_offset;
+	vkCmdCopyImage(copy_cmdbuffer,
+	               src_image,
+	               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	               dst.image,
+	               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	               1,
+	               &image_copy_region);*/
 
 	// transition swapchain image back now that copying is done
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
@@ -2088,71 +2096,31 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 	                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 	                             VK_PIPELINE_STAGE_TRANSFER_BIT,
 	                             VK_PIPELINE_STAGE_TRANSFER_BIT);
-	//printf("Swapchain transitioned back\n");
+
 	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuffer);
-	//printf("copy_cmdbuf ended\n");
-	VkImageSubresource subresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
-	vkGetImageSubresourceLayout(device, dst.image, &subresource, &dst.subresource_layout);
-	dst.map_memory(device);
-	//printf("memory mapped\n");
+	
 	return dst;
 }
 
 ImagePacket VulkanExample::create_image_packet()
 {
 	ImagePacket dst;
-	VkExtent3D extent = {FOVEAWIDTH, FOVEAHEIGHT, 1};
 
-	// Create the imagepacket image
-	VkImageCreateInfo imagepacket_image_ci = {
-		.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.pNext         = nullptr,
-		.flags         = 0,
-		.imageType     = VK_IMAGE_TYPE_2D,
-		.format        = VK_FORMAT_R8G8B8A8_SNORM,
-		.extent        = extent,
-		.mipLevels     = 1,
-		.arrayLayers   = 1,
-		.samples       = VK_SAMPLE_COUNT_1_BIT,
-		.tiling        = VK_IMAGE_TILING_LINEAR,
-		.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-		.sharingMode   = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
+	VkDeviceSize image_buffer_size = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&dst.buffer, image_buffer_size));
 
-	VK_CHECK_RESULT(vkCreateImage(device, &imagepacket_image_ci, nullptr, &dst.image));
+	dst.num_bytes = (size_t) image_buffer_size;
 
-	// Memory for image
-	VkMemoryRequirements imagepacket_memory_reqs;
-	vkGetImageMemoryRequirements(device, dst.image, &imagepacket_memory_reqs);
-
-	VkMemoryAllocateInfo imagepacket_mem_ai = {
-		.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize  = imagepacket_memory_reqs.size,
-		.memoryTypeIndex = vulkanDevice->getMemoryType(imagepacket_memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT),
-	};
-	VK_CHECK_RESULT(vkAllocateMemory(device, &imagepacket_mem_ai, nullptr, &dst.memory));
-	VK_CHECK_RESULT(vkBindImageMemory(device, dst.image, dst.memory, 0));
-
-	// Transition the destination image to a default layout of general
-	VkCommandBuffer transition_cmdbuf = vku::begin_command_buffer(device, cmdPool);
-	vku::transition_image_layout(device, cmdPool, transition_cmdbuf,
-	                             dst.image,
-	                             0,                               // src access mask
-	                             VK_ACCESS_TRANSFER_WRITE_BIT,    // dst access mask
-	                             VK_IMAGE_LAYOUT_UNDEFINED,       // old layout
-	                             VK_IMAGE_LAYOUT_GENERAL,         // transitioned layout
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT,  // src stage mask
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT); // dst stage mask
-
-	vku::end_command_buffer(device, queue, cmdPool, transition_cmdbuf);
 
 	return dst;
 }
 
 void VulkanExample::write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name)
 {
-	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
+	/*std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
 	file << "P6\n"
 		 << FOVEAWIDTH << "\n"
@@ -2170,7 +2138,7 @@ void VulkanExample::write_imagepacket_to_file(ImagePacket packet, uint32_t buffe
 		packet.data += packet.subresource_layout.rowPitch;
 	}
 
-	file.close();
+	file.close();*/
 }
 
 

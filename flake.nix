@@ -6,6 +6,10 @@
       in {
         devShells.default = pkgs.mkShell {
           nativeBuildInputs = [
+            # android setup stuff
+            pkgs.jdk11
+            pkgs.android-tools
+
             # CMake et al
             pkgs.cmake
             pkgs.ninja
