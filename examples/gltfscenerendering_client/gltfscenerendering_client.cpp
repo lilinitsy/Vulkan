@@ -15,6 +15,7 @@
  */
 
 #include "gltfscenerendering_client.h"
+#include "vk_utils.h"
 #include <cstdint>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
@@ -733,9 +734,14 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *f
 }
 
 
-void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPacket *packet, const char *filename)
+static void decode(void *host_renderer)
 {
-	
+	VulkanExample *ve = (VulkanExample*) host_renderer;
+	AVCodecContext *decode_context = ve->decoder.c;
+	AVFrame *frame = ve->decoder.frame;
+	AVPacket *packet = ve->decoder.packet;
+	std::string strfilename = "CLIENTpgmh264encoding" + std::to_string(ve->num_frames) + ".pgm";
+	const char *filename = strfilename.c_str();
 	//printf("%d Decode called\n", num_frames);
 	char buf[1024];
 	int ret = avcodec_send_packet(decode_context, packet);
@@ -764,26 +770,46 @@ void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPac
 	
 		/* the picture is allocated by the decoder. no need to
 			free it */
+
+		/*
+	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
+	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
+	vkUnmapMemory(device, server_image[0].buffer.memory);
+ 
+		*/
 		snprintf(buf, sizeof(buf), "%s-%d", filename, decode_context->frame_number);
+
+		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
+		memcpy(ve->server_image.data, frame->data[0], FOVEAWIDTH * 2 * FOVEAHEIGHT);
+
+		ve->server_image.data = static_cast<char*>(ve->server_image.data) + FOVEAWIDTH * 2 * FOVEAHEIGHT;
+		memcpy(ve->server_image.data, frame->data[1], FOVEAWIDTH * 2 * FOVEAHEIGHT);
+
+		ve->server_image.data = static_cast<char*>(ve->server_image.data) + FOVEAWIDTH * 2 * FOVEAHEIGHT;
+		memcpy(ve->server_image.data, frame->data[2], FOVEAWIDTH * 2 * FOVEAHEIGHT);
+		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
+
+
 		pgm_save(frame->data[0], frame->linesize[0],
 					frame->width, frame->height, buf);
 	}
 }
 
 
-void VulkanExample::begin_video_decoding()
+static void *begin_video_decoding(void* host_renderer)
 {
+	VulkanExample *ve = (VulkanExample*) host_renderer;
 	printf("In begin_video_decoding\n");
 	// Open the codec
-	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
+	if(avcodec_open2(ve->decoder.c, ve->decoder.codec, nullptr) < 0)
 	{
 		throw std::runtime_error("Decoder: Could not open codec");
 	}
 
 	printf("Codec opened\n");
 
-	decoder.packet = av_packet_alloc();
-	if(!decoder.packet)
+	ve->decoder.packet = av_packet_alloc();
+	if(!ve->decoder.packet)
 	{
 		throw std::runtime_error("Decoder: Could not alloc packet!");
 	}
@@ -792,23 +818,23 @@ void VulkanExample::begin_video_decoding()
 
 	int INBUF_SIZE = FOVEAWIDTH * 2 * FOVEAHEIGHT * 3;
 	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
-	std::string outfilename = "CLIENTpgmh264encoding" + std::to_string(num_frames) + ".pgm";
+	std::string outfilename = "CLIENTpgmh264encoding" + std::to_string(ve->num_frames) + ".pgm";
 
 
-	decoder.frame = av_frame_alloc();
-	if(!decoder.frame)
+	ve->decoder.frame = av_frame_alloc();
+	if(!ve->decoder.frame)
 	{
 		throw std::runtime_error("Decoder: Could not allocate video frame");
 	}
 
 
-	//SwsContext *sws_ctx = sws_getContext(decoder.c->width, decoder.c->height, AV_PIX_FMT_YUV444P, decoder.c->width, decoder.c->height, AV_PIX_FMT_RGBA, SWS_FAST_BILINEAR, 0, 0, 0);
+	//SwsContext *sws_ctx = sws_getContext(ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_YUV444P, ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, 0, 0, 0);
 
 
 	printf("Frame alloc'd\n");
 
 	uint32_t pktsize[1];
-	int num_bytes_encoded_packet = recv(client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
+	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
 	printf("Num_bytes_encoded_packet: %d\n", pktsize[0]);
 
 	int eof;
@@ -817,19 +843,19 @@ void VulkanExample::begin_video_decoding()
 	{
 		// recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
 		
-		int data_size = recv(client.socket_fd[0], left_servbuf, pktsize[0], MSG_WAITALL);
+		int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
 		//int data_size = fread(inbuf, 1, INBUF_SIZE, f);
 		//printf("DATA SIZE: %d\n", data_size);
 		// maybe need to make a new AVFrame and do smth with that? seems slow
 
-		int in_line_size[1] = {4 * decoder.c->width};
+		int in_line_size[1] = {2 * ve->decoder.c->width};
 		eof = !data_size;
-		uint8_t *data[1] = {left_servbuf};
-		decoder.frame->format = AV_PIX_FMT_RGBA;
+		uint8_t *data[1] = {ve->servbuf};
+		ve->decoder.frame->format = AV_PIX_FMT_RGBA;
 		while(data_size > 0 || eof)
 		{
 			//printf("%d In loop of begin_decoder\n", num_frames);
-			int ret = av_parser_parse2(decoder.parser, decoder.c, &decoder.packet->data, &decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+			int ret = av_parser_parse2(ve->decoder.parser, ve->decoder.c, &ve->decoder.packet->data, &ve->decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
 			//printf("RET: %d\n", ret);
 			if(ret < 0)
 			{
@@ -839,10 +865,11 @@ void VulkanExample::begin_video_decoding()
 			data[0] += ret;
 			data_size -= ret;
 
-			if(decoder.packet->size)
+			if(ve->decoder.packet->size)
 			{
-				//sws_scale(sws_ctx, data, in_line_size, 0, decoder.c->height, decoder.frame->data, decoder.frame->linesize);
-				decode(decoder.c, decoder.frame, decoder.packet, outfilename.c_str());
+				//sws_scale(sws_ctx, ve->decoder.frame->data, ve->decoder.frame->linesize, 0, ve->decoder.c->height, data, in_line_size);
+				//sws_scale(sws_ctx, data, in_line_size, 0, ve->decoder.c->height, ve->decoder.frame->data, ve->decoder.frame->linesize);
+				decode((void*) ve);
 			}
 
 			else
@@ -868,8 +895,10 @@ void VulkanExample::begin_video_decoding()
 
 
 	//avcodec_free_context(&decoder.c);
-	av_frame_free(&decoder.frame);
-	av_packet_free(&decoder.packet);
+	av_frame_free(&ve->decoder.frame);
+	av_packet_free(&ve->decoder.packet);
+
+	return nullptr;
 }
 
 
@@ -1553,16 +1582,12 @@ void VulkanExample::preparePipelines()
 
 void VulkanExample::create_server_image_buffer()
 {
-	for(uint32_t i = 0; i < 2; i++)
-	{
+	VkDeviceSize image_buffer_size = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&server_image.buffer, image_buffer_size));
 
-
-		VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&server_image[i].buffer, image_buffer_size));
-	}
 }
 
 void VulkanExample::prepareUniformBuffers()
@@ -1807,11 +1832,7 @@ void VulkanExample::draw()
 
 	gettimeofday(&tmp_start_timers.recv_swapchain_image2_start_time, nullptr);
 	//int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
-	begin_video_decoding();
-	printf("Video decoding done\n");
-	
-
-
+	int receive_image_thread = pthread_create(&vk_pthread.left_receive_image, nullptr, begin_video_decoding, this);
 
 
 	// Multiview offscreen render
@@ -1835,6 +1856,105 @@ void VulkanExample::draw()
 	// Join after all the normal client rendering is done, at the latest point possible
 	//pthread_join(vk_pthread.right_receive_image, nullptr);
 	//pthread_join(vk_pthread.left_receive_image, nullptr);
+	pthread_join(vk_pthread.left_receive_image, nullptr);
+	printf("Video decoding done\n");
+	
+//	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
+
+
+	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
+	                             swapChain.images[currentBuffer],
+	                             VK_ACCESS_MEMORY_READ_BIT,            // src access_mask
+	                             VK_ACCESS_TRANSFER_WRITE_BIT,         // dst access_mask
+	                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,      // current layout
+	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // new layout to transfer to (destination)
+	                             VK_PIPELINE_STAGE_TRANSFER_BIT,       // dst pipeline mask
+	                             VK_PIPELINE_STAGE_TRANSFER_BIT);      // src pipeline mask
+
+	// Image subresource to be used in the vkbufferimagecopy
+	VkImageSubresourceLayers image_subresource = {
+		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseArrayLayer = 0,
+		.layerCount     = 1,
+	};
+
+	// Midpoint areas....
+	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
+	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
+
+	// Get the top left point for left eye
+	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	// Get the top left point for right eye -- y is same
+	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+
+
+	VkOffset3D lefteye_image_offset = {
+		.x = topleft_lefteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+
+	// Create the vkbufferimagecopy pregions
+	VkBufferImageCopy left_copy_region = {
+		.bufferOffset      = 0,
+		.bufferRowLength   = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource  = image_subresource,
+		.imageOffset       = lefteye_image_offset,
+		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
+
+
+	VkOffset3D righteye_image_offset = {
+		.x = topleft_righteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+
+	VkBufferImageCopy right_copy_region = {
+		.bufferOffset      = FOVEAWIDTH,
+		.bufferRowLength   = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource  = image_subresource,
+		.imageOffset       = righteye_image_offset,
+		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
+
+	printf("Right before copying buffer to image\n");
+
+	// Perform copy
+	vkCmdCopyBufferToImage(copy_cmdbuf,
+	                       server_image.buffer.buffer,
+	                       swapChain.images[currentBuffer],
+	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	                       1, &left_copy_region);
+
+	/*vkCmdCopyBufferToImage(copy_cmdbuf,
+	                       server_image.buffer.buffer,
+	                       swapChain.images[currentBuffer],
+	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	                       1, &right_copy_region);*/
+
+
+
+	// Transition swapchain image back to present src khr
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
+	                             swapChain.images[currentBuffer],
+	                             VK_ACCESS_TRANSFER_WRITE_BIT,
+	                             VK_ACCESS_MEMORY_READ_BIT,
+	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+	                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+	                             VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
+
+	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
 
 	/*
 	timers.recv_swapchain_times_total.push_back(std::min(tmp_start_timers.recv_swapchain_time1, tmp_start_timers.recv_swapchain_time2));

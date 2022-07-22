@@ -250,7 +250,7 @@ class VulkanExample : public VulkanExampleBase
 		void *data;
 	};
 
-	ServerImage server_image[2];
+	ServerImage server_image;
 
 	struct
 	{
@@ -296,6 +296,7 @@ class VulkanExample : public VulkanExampleBase
 
 	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
 	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
+	uint8_t servbuf[FOVEAWIDTH * 2 * FOVEAHEIGHT * 3];
 
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
@@ -347,8 +348,8 @@ class VulkanExample : public VulkanExampleBase
 	void setup_multisample_target();
 
 	void setup_video_decoder();
-	void begin_video_decoding();
-	void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
+	// void begin_video_decoding();
+	// void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
 
 	void setup_opencl();
 	void rgb_to_rgba_opencl(const uint8_t *__restrict in_h, uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, size_t len);
