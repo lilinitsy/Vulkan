@@ -777,16 +777,34 @@ static void decode(void *host_renderer)
 	vkUnmapMemory(device, server_image[0].buffer.memory);
  
 		*/
+		unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
+		unsigned char *ybuf = frame->data[0];
+		unsigned char *ubuf = frame->data[1];
+		unsigned char *vbuf = frame->data[2];
+		for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
+		{
+			ybuf[j] -= 16;
+			ubuf[j] -= 128;
+			vbuf[j] -= 128;
+			rgba_frame[i] = 1.164f * (float) ybuf[j] + 1.596f * (float) vbuf[j];
+			rgba_frame[i + 1] = 1.164f * (float) ybuf[j] - 0.392f * (float) ubuf[j] - 0.813f * (float) vbuf[j];
+			rgba_frame[i + 2] = 1.164f * (float) ybuf[j] + 2.017f * (float) ubuf[j];
+			rgba_frame[i + 3] = 255;
+		}
+
+
 		snprintf(buf, sizeof(buf), "%s-%d", filename, decode_context->frame_number);
 
 		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		memcpy(ve->server_image.data, frame->data[0], FOVEAWIDTH * 2 * FOVEAHEIGHT);
+		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
+		
+		/*memcpy(ve->server_image.data, frame->data[0], FOVEAWIDTH * 2 * FOVEAHEIGHT);
 
 		ve->server_image.data = static_cast<char*>(ve->server_image.data) + FOVEAWIDTH * 2 * FOVEAHEIGHT;
 		memcpy(ve->server_image.data, frame->data[1], FOVEAWIDTH * 2 * FOVEAHEIGHT);
 
 		ve->server_image.data = static_cast<char*>(ve->server_image.data) + FOVEAWIDTH * 2 * FOVEAHEIGHT;
-		memcpy(ve->server_image.data, frame->data[2], FOVEAWIDTH * 2 * FOVEAHEIGHT);
+		memcpy(ve->server_image.data, frame->data[2], FOVEAWIDTH * 2 * FOVEAHEIGHT);*/
 		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 
 
@@ -799,22 +817,17 @@ static void decode(void *host_renderer)
 static void *begin_video_decoding(void* host_renderer)
 {
 	VulkanExample *ve = (VulkanExample*) host_renderer;
-	printf("In begin_video_decoding\n");
 	// Open the codec
 	if(avcodec_open2(ve->decoder.c, ve->decoder.codec, nullptr) < 0)
 	{
 		throw std::runtime_error("Decoder: Could not open codec");
 	}
 
-	printf("Codec opened\n");
-
 	ve->decoder.packet = av_packet_alloc();
 	if(!ve->decoder.packet)
 	{
 		throw std::runtime_error("Decoder: Could not alloc packet!");
 	}
-
-	printf("Packet alloc'd\n");
 
 	int INBUF_SIZE = FOVEAWIDTH * 2 * FOVEAHEIGHT * 3;
 	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
@@ -827,11 +840,7 @@ static void *begin_video_decoding(void* host_renderer)
 		throw std::runtime_error("Decoder: Could not allocate video frame");
 	}
 
-
-	//SwsContext *sws_ctx = sws_getContext(ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_YUV444P, ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, 0, 0, 0);
-
-
-	printf("Frame alloc'd\n");
+	SwsContext *sws_ctx = sws_getContext(ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_YUV444P, ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, 0, 0, 0);
 
 	uint32_t pktsize[1];
 	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
@@ -874,27 +883,12 @@ static void *begin_video_decoding(void* host_renderer)
 
 			else
 			{
-				printf("data_size: %d\n", data_size);
 				should_break = true;
 				break;
 			}
-
-			/*else if(eof)
-			{
-				printf("Eof found\n");
-				should_break = true;
-				break;
-			}*/
 		}
 	} while(!should_break);
-	printf("Can flush\n");
 
-	// flush decoder
-
-	//decode(decoder.c, decoder.frame, nullptr, outfilename.c_str());
-
-
-	//avcodec_free_context(&decoder.c);
 	av_frame_free(&ve->decoder.frame);
 	av_packet_free(&ve->decoder.packet);
 

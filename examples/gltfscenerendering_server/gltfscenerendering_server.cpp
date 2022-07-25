@@ -1423,7 +1423,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 
 	if(ve->encoder.codec->id == AV_CODEC_ID_H264)
 		av_opt_set(ve->encoder.c->priv_data, "preset", "slow", 0);
-	av_opt_set(ve->encoder.c->priv_data, "crf", "17", AV_OPT_SEARCH_CHILDREN);
+	av_opt_set(ve->encoder.c->priv_data, "crf", "0", AV_OPT_SEARCH_CHILDREN);
 
 	/* open it */
 	int ret = avcodec_open2(ve->encoder.c,ve-> encoder.codec, NULL);
@@ -1455,7 +1455,6 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	// Get the context or whatever
 	SwsContext *sws_ctx = sws_getContext(ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_RGBA, ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
 
-
 	fflush(stdout);
 
 	ret = av_frame_make_writable(ve->encoder.frame);
@@ -1474,10 +1473,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	int in_line_size[1] = {2 * ve->encoder.c->width};
 	uint8_t *in_data[1] = {(uint8_t*) ve->foveal_regions.data};
 	ve->encoder.frame->pts = 0;
-	printf("Right before sws_scale\n");
 	sws_scale(sws_ctx, in_data, in_line_size, 0, ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
-
-	printf("sws_scale successful\n");
 
 	/* encode the image */
 	encode(ve, ve->encoder.c, ve->encoder.frame, ve->encoder.packet, f);
