@@ -17,6 +17,7 @@
 
 #include "gltfscenerendering_server.h"
 #include "vk_utils.h"
+#include "vulkan/vulkan_beta.h"
 #include "vulkan/vulkan_core.h"
 #include <libavcodec/avcodec.h>
 #include <libavcodec/codec.h>
@@ -412,6 +413,16 @@ VulkanExample::VulkanExample() :
 
 	// Reading device properties and features for multiview requires VK_KHR_get_physical_device_properties2 to be enabled
 	enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+	// Video requirements
+	enabledDeviceExtensions.push_back(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+	enabledDeviceExtensions.push_back(VK_KHR_VIDEO_QUEUE_EXTENSION_NAME);
+
+	// Dependences for YCbCr_Conversion
+	//VK_KHR_maintenance1, VK_KHR_bind_memory2, VK_KHR_get_memory_requirements2
+	enabledDeviceExtensions.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+	enabledDeviceExtensions.push_back(VK_KHR_BIND_MEMORY_2_EXTENSION_NAME);
+	enabledDeviceExtensions.push_back(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
 
 	// Enable required extension features
 	physical_device_multiview_features = {

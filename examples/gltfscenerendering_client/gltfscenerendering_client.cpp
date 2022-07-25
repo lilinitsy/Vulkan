@@ -783,13 +783,14 @@ static void decode(void *host_renderer)
 		unsigned char *vbuf = frame->data[2];
 		for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
 		{
-			ybuf[j] -= 16;
-			ubuf[j] -= 128;
-			vbuf[j] -= 128;
-			rgba_frame[i] = 1.164f * (float) ybuf[j] + 1.596f * (float) vbuf[j];
-			rgba_frame[i + 1] = 1.164f * (float) ybuf[j] - 0.392f * (float) ubuf[j] - 0.813f * (float) vbuf[j];
-			rgba_frame[i + 2] = 1.164f * (float) ybuf[j] + 2.017f * (float) ubuf[j];
+			rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
+			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
+			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
 			rgba_frame[i + 3] = 255;
+			//rgba_frame[i] = ybuf[j];
+			//rgba_frame[i + 1] = ubuf[j];
+			//rgba_frame[i + 2] = vbuf[j];
+			//rgba_frame[i + 3] = 255;
 		}
 
 
