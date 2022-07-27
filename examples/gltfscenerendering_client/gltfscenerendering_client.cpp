@@ -719,7 +719,7 @@ void VulkanExample::setup_video_decoder()
 	}
 }
 
-static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *filename)
+static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, const char *filename)
 {
     FILE *f;
     int i;
@@ -731,6 +731,8 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *f
         fwrite(buf + i * wrap, 1, xsize, f);
 	}
 	fclose(f);
+
+	printf("Wrap (frame->linesize[0]): %d\n", wrap);
 }
 
 
@@ -752,9 +754,7 @@ static void decode(void *host_renderer)
 	
 	while(ret >= 0)
 	{
-		//printf("%d In loop of decode\n", num_frames);
 		ret = avcodec_receive_frame(decode_context, frame);
-		//printf("%d AV Frame Received\n", num_frames);
 		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 		{
 			//printf("AV Error on ret after receiving frame; not writing output\n");
@@ -765,52 +765,34 @@ static void decode(void *host_renderer)
 			throw std::runtime_error("Error during decoding");
 		}
 	
-		//printf("saving frame %3d\n", decode_context->frame_number);
 		fflush(stdout);
 	
-		/* the picture is allocated by the decoder. no need to
-			free it */
+		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
+		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
+		printf("num_bytes_for_images: %lu\n", num_bytes_for_images);
+		printf("decoder_rgba_num_bytes: %lu\n", decoder_rgba_num_bytes);
 
-		/*
-	vkMapMemory(device, server_image[0].buffer.memory, 0, num_bytes_for_image, 0, (void **) &server_image[0].data);
-	vku::rgb_to_rgba(left_servbuf, (uint8_t *) server_image[0].data); //, num_bytes_for_image);
-	vkUnmapMemory(device, server_image[0].buffer.memory);
- 
-		*/
 		unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
 		unsigned char *ybuf = frame->data[0];
 		unsigned char *ubuf = frame->data[1];
 		unsigned char *vbuf = frame->data[2];
 		for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
 		{
-			rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
-			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
-			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
+			//rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
+			//rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
+			//rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
+
+			rgba_frame[i] = ybuf[j];
+			rgba_frame[i + 1] = ybuf[j];
+			rgba_frame[i + 2] = ybuf[j];
 			rgba_frame[i + 3] = 255;
-			//rgba_frame[i] = ybuf[j];
-			//rgba_frame[i + 1] = ubuf[j];
-			//rgba_frame[i + 2] = vbuf[j];
-			//rgba_frame[i + 3] = 255;
 		}
-
-
-		snprintf(buf, sizeof(buf), "%s-%d", filename, decode_context->frame_number);
 
 		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
 		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
-		
-		/*memcpy(ve->server_image.data, frame->data[0], FOVEAWIDTH * 2 * FOVEAHEIGHT);
-
-		ve->server_image.data = static_cast<char*>(ve->server_image.data) + FOVEAWIDTH * 2 * FOVEAHEIGHT;
-		memcpy(ve->server_image.data, frame->data[1], FOVEAWIDTH * 2 * FOVEAHEIGHT);
-
-		ve->server_image.data = static_cast<char*>(ve->server_image.data) + FOVEAWIDTH * 2 * FOVEAHEIGHT;
-		memcpy(ve->server_image.data, frame->data[2], FOVEAWIDTH * 2 * FOVEAHEIGHT);*/
 		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 
-
-		pgm_save(frame->data[0], frame->linesize[0],
-					frame->width, frame->height, buf);
+		pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
 	}
 }
 
@@ -845,23 +827,17 @@ static void *begin_video_decoding(void* host_renderer)
 
 	uint32_t pktsize[1];
 	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
-	printf("Num_bytes_encoded_packet: %d\n", pktsize[0]);
-
 	int eof;
 	bool should_break = false;
-	do
-	{
-		// recv(ve->client.socket_fd[idx], ve->left_servbuf, num_bytes_network_read, MSG_WAITALL);
-		
-		int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
-		//int data_size = fread(inbuf, 1, INBUF_SIZE, f);
-		//printf("DATA SIZE: %d\n", data_size);
-		// maybe need to make a new AVFrame and do smth with that? seems slow
 
+	do
+	{		
+		int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
 		int in_line_size[1] = {2 * ve->decoder.c->width};
 		eof = !data_size;
 		uint8_t *data[1] = {ve->servbuf};
 		ve->decoder.frame->format = AV_PIX_FMT_RGBA;
+
 		while(data_size > 0 || eof)
 		{
 			//printf("%d In loop of begin_decoder\n", num_frames);
@@ -1896,7 +1872,7 @@ void VulkanExample::draw()
 	// Create the vkbufferimagecopy pregions
 	VkBufferImageCopy left_copy_region = {
 		.bufferOffset      = 0,
-		.bufferRowLength   = FOVEAWIDTH,
+		.bufferRowLength   = FOVEAWIDTH * 2,
 		.bufferImageHeight = FOVEAHEIGHT,
 		.imageSubresource  = image_subresource,
 		.imageOffset       = lefteye_image_offset,
@@ -1913,7 +1889,7 @@ void VulkanExample::draw()
 
 	VkBufferImageCopy right_copy_region = {
 		.bufferOffset      = FOVEAWIDTH,
-		.bufferRowLength   = FOVEAWIDTH,
+		.bufferRowLength   = FOVEAWIDTH * 2,
 		.bufferImageHeight = FOVEAHEIGHT,
 		.imageSubresource  = image_subresource,
 		.imageOffset       = righteye_image_offset,
@@ -1929,11 +1905,11 @@ void VulkanExample::draw()
 	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 	                       1, &left_copy_region);
 
-	/*vkCmdCopyBufferToImage(copy_cmdbuf,
+	vkCmdCopyBufferToImage(copy_cmdbuf,
 	                       server_image.buffer.buffer,
 	                       swapChain.images[currentBuffer],
 	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	                       1, &right_copy_region);*/
+	                       1, &right_copy_region);
 
 
 
