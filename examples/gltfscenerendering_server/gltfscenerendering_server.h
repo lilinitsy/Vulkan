@@ -320,6 +320,8 @@ class VulkanExample : public VulkanExampleBase
 		AVPacket *packet;
 	} decoder;
 
+	bool should_wait_for_camera_data = true;
+
 	
 
 

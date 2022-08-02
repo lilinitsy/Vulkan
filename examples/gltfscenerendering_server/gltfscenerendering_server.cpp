@@ -1322,11 +1322,6 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 {
 	//int ret;
 
-	/* send the frame to the encoder */
-	if(frame)
-		printf("Frame num: %d\tSend frame %3" PRId64 "\n", ve->numframes, frame->pts);
-
-
 	int ret = avcodec_send_frame(encode_context, frame);
 	if(ret < 0)
 	{
@@ -1344,7 +1339,10 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 	{
 		ret = avcodec_receive_packet(encode_context, packet);
 		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+		{
+			printf("Ret was an error\n");
 			return;
+		}
 		else if(ret < 0)
 		{
 			throw std::runtime_error("Could not receive packet");
@@ -1355,11 +1353,23 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 		// send from here?
 		//fwrite(packet->data, 1, packet->size, outfile);
 		//av_packet_unref(packet);
-		printf("About to send packet\n");
+		printf("About to send packet size\n");
 		send(ve->server.client_fd[0], &packet->size, sizeof(packet->size), 0);
+		printf("Packet size sent. Now sending packet\n");
 		ssize_t sendret = send(ve->server.client_fd[0], &packet->data[0], packet->size, 0);
 		printf("Sendret: %zd\n", sendret);
+		ve->should_wait_for_camera_data = true;
+
+
+		// ADD CAMERA RECV IN HERE? FUCKING RETARDED
 	}
+
+	float camera_buf[6];
+
+	int client_read = recv(ve->server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	ve->camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
+	ve->camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
+
 }
 
 
@@ -1503,7 +1513,6 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 
 
 
-	printf("Video encoding successful\n");
 
 	//avcodec_free_context(&encoder.c);
 	av_frame_free(&ve->encoder.frame);
@@ -1547,9 +1556,6 @@ static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *f
 
 void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPacket *packet, const char *filename)
 {
-	
-
-
 	printf("%d Decode called\n", numframes);
 	char buf[1024];
 	int ret = avcodec_send_packet(decode_context, packet);
@@ -1868,12 +1874,14 @@ void VulkanExample::setup_opencl()
 
 void VulkanExample::draw()
 {
+	printf("\n");
+	printf("Framenum: %d\n", numframes);
 	timeval drawstarttime;
 	timeval drawendtime;
 	gettimeofday(&drawstarttime, nullptr);
 
 	VulkanExampleBase::prepareFrame();
-
+	should_wait_for_camera_data = false;
 
 	// Multiview offscreen render
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
@@ -1960,7 +1968,6 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.left_send_image, nullptr);
 
 	gettimeofday(&encodeendtime, nullptr);
-	printf("Video encoding done\n");
 
 	float encodetimediff = vku::time_difference((encodestarttime), encodeendtime);
 	printf("Encode time diff: %f\n", encodetimediff);
@@ -1970,6 +1977,8 @@ void VulkanExample::draw()
 
 	//pthread_join(vk_pthread.left_send_image, nullptr);
 	//pthread_join(vk_pthread.right_send_image, nullptr);
+
+
 
 	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
 

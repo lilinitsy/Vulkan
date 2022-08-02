@@ -792,6 +792,7 @@ static void decode(void *host_renderer)
 		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
 		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 
+
 		pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
 	}
 }
@@ -812,8 +813,6 @@ static void *begin_video_decoding(void* host_renderer)
 		throw std::runtime_error("Decoder: Could not alloc packet!");
 	}
 
-	int INBUF_SIZE = FOVEAWIDTH * 2 * FOVEAHEIGHT * 3;
-	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
 	std::string outfilename = "CLIENTpgmh264encoding" + std::to_string(ve->num_frames) + ".pgm";
 
 
@@ -824,15 +823,20 @@ static void *begin_video_decoding(void* host_renderer)
 	}
 
 	SwsContext *sws_ctx = sws_getContext(ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_YUV444P, ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, 0, 0, 0);
-
+	printf("After sws_getContext call\n");
 	uint32_t pktsize[1];
 	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
+	printf("pktsize: %d\n", pktsize[0]);
 	int eof;
 	bool should_break = false;
 
 	do
-	{		
+	{
+		printf("Waiting to recv encoded data\n");
 		int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
+		uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
+		printf("Received encoded data\n");
+
 		int in_line_size[1] = {2 * ve->decoder.c->width};
 		eof = !data_size;
 		uint8_t *data[1] = {ve->servbuf};
@@ -866,8 +870,22 @@ static void *begin_video_decoding(void* host_renderer)
 		}
 	} while(!should_break);
 
+	float camera_data[6] = {
+		ve->camera.position.x,
+		ve->camera.position.y,
+		ve->camera.position.z,
+		ve->camera.rotation.x,
+		ve->camera.rotation.y,
+		ve->camera.rotation.z,
+	};
+
+	send(ve->client.socket_fd[1], camera_data, 6 * sizeof(float), 0);
+
+
 	av_frame_free(&ve->decoder.frame);
 	av_packet_free(&ve->decoder.packet);
+
+	
 
 	return nullptr;
 }
@@ -944,8 +962,9 @@ void *send_camera_data(void *devicerenderer)
 		ve->camera.rotation.z,
 	};
 
-	send(ve->client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
-
+	printf("Right before camerasend call\n");
+	send(ve->client.socket_fd[1], camera_data, 6 * sizeof(float), 0);
+	printf("Camera data sent\n");
 	timeval send_cameradata_time_end;
 	gettimeofday(&send_cameradata_time_end, nullptr);
 	ve->timers.send_cameradata_time.push_back(vku::time_difference(ve->tmp_start_timers.send_cameradata_time, send_cameradata_time_end));
@@ -1795,7 +1814,9 @@ void VulkanExample::prepare()
 
 void VulkanExample::draw()
 {
+	printf("\n\nnum_frame: %d\n", num_frames);
 	VulkanExampleBase::prepareFrame();
+	//int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
 
 	// Create timers for individual threads and receive the swapchain images
 	gettimeofday(&tmp_start_timers.recv_swapchain_image1_start_time, nullptr);
@@ -1830,7 +1851,7 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.left_receive_image, nullptr);
 	printf("Video decoding done\n");
 	
-//	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
+
 
 
 	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
@@ -2062,21 +2083,8 @@ void VulkanExample::draw()
 	*/
 	// Submit frame to be drawn
 	VulkanExampleBase::submitFrame();
-
-	// pthread_join(vk_pthread.send_thread, nullptr);
-
-	float camera_data[6] = {
-		camera.position.x,
-		camera.position.y,
-		camera.position.z,
-		camera.rotation.x,
-		camera.rotation.y,
-		camera.rotation.z,
-	};
 	
-	// printf("Sending\n");
-	// send(client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
-
+	//pthread_join(vk_pthread.send_thread, nullptr);
 
 	total_fps += lastFPS;
 	num_frames++;
