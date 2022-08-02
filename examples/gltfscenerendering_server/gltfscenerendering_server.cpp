@@ -1341,7 +1341,13 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 		{
 			printf("Ret was an error\n");
-			return;
+			// Send garbage data twice to advance shit
+			uint32_t garbage = 4;
+			int sendret = send(ve->server.client_fd[0], &garbage, sizeof(uint32_t), 0);
+			printf("garbage sendret: %d\n", sendret);
+			send(ve->server.client_fd[0], &garbage, sizeof(garbage), 0);			
+			printf("Sent sucessfully from garbage section\n");
+			break;
 		}
 		else if(ret < 0)
 		{
@@ -1359,9 +1365,6 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 		ssize_t sendret = send(ve->server.client_fd[0], &packet->data[0], packet->size, 0);
 		printf("Sendret: %zd\n", sendret);
 		ve->should_wait_for_camera_data = true;
-
-
-		// ADD CAMERA RECV IN HERE? FUCKING RETARDED
 	}
 
 	float camera_buf[6];
@@ -1374,7 +1377,7 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 
 
 void VulkanExample::setup_video_encoder()
-{
+{ 
 	const char *filename, *codec_name;
 	int ret;
 

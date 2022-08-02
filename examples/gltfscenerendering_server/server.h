@@ -40,7 +40,7 @@ struct Server
 			printf("Binding on port %d\n", PORT[i]);
 			if(binding == -1)
 			{
-				std::string port_socketnum_str = std::to_string(i) + " " + std::to_string(PORT[i]);
+				std::string port_socketnum_str = std::to_string(i) + "	 " + std::to_string(PORT[i]);
 				throw std::runtime_error("Bind to socket failed: " + port_socketnum_str);
 			}
 

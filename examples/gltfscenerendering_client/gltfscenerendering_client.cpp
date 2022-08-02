@@ -822,11 +822,10 @@ static void *begin_video_decoding(void* host_renderer)
 		throw std::runtime_error("Decoder: Could not allocate video frame");
 	}
 
-	SwsContext *sws_ctx = sws_getContext(ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_YUV444P, ve->decoder.c->width, ve->decoder.c->height, AV_PIX_FMT_RGB24, SWS_FAST_BILINEAR, 0, 0, 0);
-	printf("After sws_getContext call\n");
+	printf("waiting to recv\n");
 	uint32_t pktsize[1];
 	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
-	printf("pktsize: %d\n", pktsize[0]);
+	printf("Successfully recv'd, pktsize: %d\n", pktsize[0]);
 	int eof;
 	bool should_break = false;
 
@@ -879,8 +878,9 @@ static void *begin_video_decoding(void* host_renderer)
 		ve->camera.rotation.z,
 	};
 
-	send(ve->client.socket_fd[1], camera_data, 6 * sizeof(float), 0);
-
+	printf("right before send\n");
+	send(ve->client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
+	printf("Sent successfully\n");
 
 	av_frame_free(&ve->decoder.frame);
 	av_packet_free(&ve->decoder.packet);
@@ -1789,7 +1789,6 @@ void VulkanExample::setup_opencl()
 
 void VulkanExample::prepare()
 {
-	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	//setup_opencl();
 	setup_video_decoder();
@@ -1808,6 +1807,7 @@ void VulkanExample::prepare()
 		VK_CHECK_RESULT(vkCreateFence(device, &multiview_fence_ci, nullptr, &multiview_pass.wait_fences[i]));
 	}
 
+	client.connect_to_server(PORT);
 
 	prepared = true;
 }
