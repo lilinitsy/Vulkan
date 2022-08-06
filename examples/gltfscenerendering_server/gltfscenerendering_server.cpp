@@ -1335,11 +1335,12 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 		throw std::runtime_error("Error sending frame for encoding");
 	}
 
-	while(ret >= 0)
-	{
+	//while(ret >= 0)
+	//{
 		ret = avcodec_receive_packet(encode_context, packet);
 		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 		{
+			// dbg section
 			printf("Ret was an error\n");
 			// Send garbage data twice to advance shit
 			uint32_t garbage = 4;
@@ -1347,12 +1348,15 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 			printf("garbage sendret: %d\n", sendret);
 			send(ve->server.client_fd[0], &garbage, sizeof(garbage), 0);			
 			printf("Sent sucessfully from garbage section\n");
-			break;
+			//break;
 		}
 		else if(ret < 0)
 		{
 			throw std::runtime_error("Could not receive packet");
 		}
+
+		else
+		{
 
 		printf("Write packet %3" PRId64 " (size=%5d)\n", packet->pts, packet->size);
 
@@ -1365,7 +1369,8 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 		ssize_t sendret = send(ve->server.client_fd[0], &packet->data[0], packet->size, 0);
 		printf("Sendret: %zd\n", sendret);
 		ve->should_wait_for_camera_data = true;
-	}
+		}
+	//}
 
 	float camera_buf[6];
 
