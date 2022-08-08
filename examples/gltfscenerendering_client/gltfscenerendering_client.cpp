@@ -791,9 +791,7 @@ static void decode(void *host_renderer)
 		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
 		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
 		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
-
-
-		pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
+		//pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
 	}
 }
 
@@ -829,45 +827,42 @@ static void *begin_video_decoding(void* host_renderer)
 	int eof;
 	bool should_break = false;
 
-	do
+	printf("Waiting to recv encoded data\n");
+	int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
+	uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
+	printf("Received encoded data\n");
+
+	int in_line_size[1] = {2 * ve->decoder.c->width};
+	eof = !data_size;
+	uint8_t *data[1] = {ve->servbuf};
+	ve->decoder.frame->format = AV_PIX_FMT_RGBA;
+
+	while(data_size > 0 || eof)
 	{
-		printf("Waiting to recv encoded data\n");
-		int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
-		uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
-		printf("Received encoded data\n");
-
-		int in_line_size[1] = {2 * ve->decoder.c->width};
-		eof = !data_size;
-		uint8_t *data[1] = {ve->servbuf};
-		ve->decoder.frame->format = AV_PIX_FMT_RGBA;
-
-		while(data_size > 0 || eof)
+		//printf("%d In loop of begin_decoder\n", num_frames);
+		int ret = av_parser_parse2(ve->decoder.parser, ve->decoder.c, &ve->decoder.packet->data, &ve->decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+		//printf("RET: %d\n", ret);
+		if(ret < 0)
 		{
-			//printf("%d In loop of begin_decoder\n", num_frames);
-			int ret = av_parser_parse2(ve->decoder.parser, ve->decoder.c, &ve->decoder.packet->data, &ve->decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
-			//printf("RET: %d\n", ret);
-			if(ret < 0)
-			{
-				throw std::runtime_error("Decoder: Error while parsing");
-			}
-
-			data[0] += ret;
-			data_size -= ret;
-
-			if(ve->decoder.packet->size)
-			{
-				//sws_scale(sws_ctx, ve->decoder.frame->data, ve->decoder.frame->linesize, 0, ve->decoder.c->height, data, in_line_size);
-				//sws_scale(sws_ctx, data, in_line_size, 0, ve->decoder.c->height, ve->decoder.frame->data, ve->decoder.frame->linesize);
-				decode((void*) ve);
-			}
-
-			else
-			{
-				should_break = true;
-				break;
-			}
+			throw std::runtime_error("Decoder: Error while parsing");
 		}
-	} while(!should_break);
+
+		data[0] += ret;
+		data_size -= ret;
+
+		if(ve->decoder.packet->size)
+		{
+			//sws_scale(sws_ctx, ve->decoder.frame->data, ve->decoder.frame->linesize, 0, ve->decoder.c->height, data, in_line_size);
+			//sws_scale(sws_ctx, data, in_line_size, 0, ve->decoder.c->height, ve->decoder.frame->data, ve->decoder.frame->linesize);
+			decode((void*) ve);
+		}
+
+		else
+		{
+			should_break = true;
+			break;
+		}
+	}
 
 	float camera_data[6] = {
 		ve->camera.position.x,
