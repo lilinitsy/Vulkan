@@ -864,23 +864,8 @@ static void *begin_video_decoding(void* host_renderer)
 		}
 	}
 
-	float camera_data[6] = {
-		ve->camera.position.x,
-		ve->camera.position.y,
-		ve->camera.position.z,
-		ve->camera.rotation.x,
-		ve->camera.rotation.y,
-		ve->camera.rotation.z,
-	};
-
-	printf("right before send\n");
-	send(ve->client.socket_fd[0], camera_data, 6 * sizeof(float), 0);
-	printf("Sent successfully\n");
-
 	av_frame_free(&ve->decoder.frame);
 	av_packet_free(&ve->decoder.packet);
-
-	
 
 	return nullptr;
 }
@@ -1811,15 +1796,14 @@ void VulkanExample::draw()
 {
 	printf("\n\nnum_frame: %d\n", num_frames);
 	VulkanExampleBase::prepareFrame();
-	//int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
+	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
 
 	// Create timers for individual threads and receive the swapchain images
 	gettimeofday(&tmp_start_timers.recv_swapchain_image1_start_time, nullptr);
-	//int left_receive_image_thread_create = pthread_create(&vk_pthread.left_receive_image, nullptr, receive_swapchain_image, this);
+	//int receive_image_thread_create = pthread_create(&vk_pthread.receive_image, nullptr, receive_swapchain_image, this);
 
 	gettimeofday(&tmp_start_timers.recv_swapchain_image2_start_time, nullptr);
-	//int right_receive_image_thread_create = pthread_create(&vk_pthread.right_receive_image, nullptr, receive_swapchain_image2, this);
-	int receive_image_thread = pthread_create(&vk_pthread.left_receive_image, nullptr, begin_video_decoding, this);
+	int receive_image_thread = pthread_create(&vk_pthread.receive_image, nullptr, begin_video_decoding, this);
 
 
 	// Multiview offscreen render
@@ -1842,8 +1826,8 @@ void VulkanExample::draw()
 
 	// Join after all the normal client rendering is done, at the latest point possible
 	//pthread_join(vk_pthread.right_receive_image, nullptr);
-	//pthread_join(vk_pthread.left_receive_image, nullptr);
-	pthread_join(vk_pthread.left_receive_image, nullptr);
+	//pthread_join(vk_pthread.receive_image, nullptr);
+	pthread_join(vk_pthread.receive_image, nullptr);
 	printf("Video decoding done\n");
 	
 
@@ -2080,6 +2064,8 @@ void VulkanExample::draw()
 	VulkanExampleBase::submitFrame();
 	
 	//pthread_join(vk_pthread.send_thread, nullptr);
+
+	pthread_join(vk_pthread.send_thread, nullptr);
 
 	total_fps += lastFPS;
 	num_frames++;

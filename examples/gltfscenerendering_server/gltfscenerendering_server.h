@@ -274,8 +274,8 @@ class VulkanExample : public VulkanExampleBase
 
 	struct
 	{
-		pthread_t left_send_image;
-		pthread_t right_send_image;
+		pthread_t send_image;
+		pthread_t recv_camera;
 	} vk_pthread;
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};

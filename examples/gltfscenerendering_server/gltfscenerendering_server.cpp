@@ -774,7 +774,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// DO NOT drawUI in the multiview pass.
-			//drawUI(drawCmdBuffers[i]);
+			drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1335,29 +1335,26 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 		throw std::runtime_error("Error sending frame for encoding");
 	}
 
-	//while(ret >= 0)
-	//{
-		ret = avcodec_receive_packet(encode_context, packet);
-		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-		{
-			// dbg section
-			printf("Ret was an error\n");
-			// Send garbage data twice to advance shit
-			uint32_t garbage = 4;
-			int sendret = send(ve->server.client_fd[0], &garbage, sizeof(uint32_t), 0);
-			printf("garbage sendret: %d\n", sendret);
-			send(ve->server.client_fd[0], &garbage, sizeof(garbage), 0);			
-			printf("Sent sucessfully from garbage section\n");
-			//break;
-		}
-		else if(ret < 0)
-		{
-			throw std::runtime_error("Could not receive packet");
-		}
+	ret = avcodec_receive_packet(encode_context, packet);
+	if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+	{
+		// dbg section
+		printf("Ret was an error\n");
+		// Send garbage data twice to advance shit
+		uint32_t garbage = 4;
+		int sendret = send(ve->server.client_fd[0], &garbage, sizeof(uint32_t), 0);
+		printf("garbage sendret: %d\n", sendret);
+		send(ve->server.client_fd[0], &garbage, sizeof(garbage), 0);			
+		printf("Sent sucessfully from garbage section\n");
+	}
 
-		else
-		{
+	else if(ret < 0)
+	{
+		throw std::runtime_error("Could not receive packet");
+	}
 
+	else
+	{
 		printf("Write packet %3" PRId64 " (size=%5d)\n", packet->pts, packet->size);
 
 		// send from here?
@@ -1369,15 +1366,7 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 		ssize_t sendret = send(ve->server.client_fd[0], &packet->data[0], packet->size, 0);
 		printf("Sendret: %zd\n", sendret);
 		ve->should_wait_for_camera_data = true;
-		}
-	//}
-
-	float camera_buf[6];
-
-	int client_read = recv(ve->server.client_fd[0], camera_buf, 6 * sizeof(float), MSG_WAITALL);
-	ve->camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
-	ve->camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
-
+	}
 }
 
 
@@ -1414,6 +1403,19 @@ struct EncodingData
 	uint8_t *v; // not going to b e used while testing ffmpeg colour space conversion
 };
 
+
+static void *receive_camera_data(void *host_renderer)
+{
+	VulkanExample *ve = (VulkanExample*) host_renderer;
+
+	float camera_buf[6];
+
+	int client_read = recv(ve->server.client_fd[1], camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	ve->camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
+	ve->camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
+
+	return nullptr;
+}
 
 
 static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
@@ -1972,21 +1974,24 @@ void VulkanExample::draw()
 	gettimeofday(&encodestarttime, nullptr);
 	
 
-	int left_image_send_encode = pthread_create(&vk_pthread.left_send_image, nullptr, begin_video_encoding, this);
-	pthread_join(vk_pthread.left_send_image, nullptr);
+	int left_image_send_encode = pthread_create(&vk_pthread.send_image, nullptr, begin_video_encoding, this);
+	pthread_join(vk_pthread.send_image, nullptr);
 
+	int receive_camera_thread = pthread_create(&vk_pthread.recv_camera, nullptr, receive_camera_data, this);
+
+	// need to adjust this cause it's no longer accurate...
 	gettimeofday(&encodeendtime, nullptr);
 
 	float encodetimediff = vku::time_difference((encodestarttime), encodeendtime);
 	printf("Encode time diff: %f\n", encodetimediff);
 
-	//int left_image_send  = pthread_create(&vk_pthread.left_send_image, nullptr, send_image_to_client, this);
+	//int left_image_send  = pthread_create(&vk_pthread.send_image, nullptr, send_image_to_client, this);
 	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
 
-	//pthread_join(vk_pthread.left_send_image, nullptr);
+	//pthread_join(vk_pthread.send_image, nullptr);
 	//pthread_join(vk_pthread.right_send_image, nullptr);
 
-
+	pthread_join(vk_pthread.recv_camera, nullptr);
 
 	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
 

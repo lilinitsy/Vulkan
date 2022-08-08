@@ -254,8 +254,7 @@ class VulkanExample : public VulkanExampleBase
 
 	struct
 	{
-		pthread_t left_receive_image;
-		pthread_t right_receive_image;
+		pthread_t receive_image;
 		pthread_t send_thread;
 	} vk_pthread;
 
