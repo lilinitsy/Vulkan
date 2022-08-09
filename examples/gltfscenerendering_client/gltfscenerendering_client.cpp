@@ -717,6 +717,24 @@ void VulkanExample::setup_video_decoder()
 	{
 		throw std::runtime_error("Decoder: Could not allocate video codec context");
 	}
+
+	// Open the codec
+	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
+	{
+		throw std::runtime_error("Decoder: Could not open codec");
+	}
+
+	decoder.packet = av_packet_alloc();
+	if(!decoder.packet)
+	{
+		throw std::runtime_error("Decoder: Could not alloc packet!");
+	}
+
+	decoder.frame = av_frame_alloc();
+	if(!decoder.frame)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video frame");
+	}
 }
 
 static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, const char *filename)
@@ -744,7 +762,7 @@ static void decode(void *host_renderer)
 	AVPacket *packet = ve->decoder.packet;
 	std::string strfilename = "CLIENTpgmh264encoding" + std::to_string(ve->num_frames) + ".pgm";
 	const char *filename = strfilename.c_str();
-	//printf("%d Decode called\n", num_frames);
+
 	char buf[1024];
 	int ret = avcodec_send_packet(decode_context, packet);
 	if(ret < 0)
@@ -769,8 +787,6 @@ static void decode(void *host_renderer)
 	
 		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
 		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
-		printf("num_bytes_for_images: %lu\n", num_bytes_for_images);
-		printf("decoder_rgba_num_bytes: %lu\n", decoder_rgba_num_bytes);
 
 		unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
 		unsigned char *ybuf = frame->data[0];
@@ -781,10 +797,6 @@ static void decode(void *host_renderer)
 			rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
 			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
 			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
-
-			//rgba_frame[i] = ybuf[j];
-			//rgba_frame[i + 1] = ybuf[j];
-			//rgba_frame[i + 2] = ybuf[j];
 			rgba_frame[i + 3] = 255;
 		}
 
@@ -799,38 +811,16 @@ static void decode(void *host_renderer)
 static void *begin_video_decoding(void* host_renderer)
 {
 	VulkanExample *ve = (VulkanExample*) host_renderer;
-	// Open the codec
-	if(avcodec_open2(ve->decoder.c, ve->decoder.codec, nullptr) < 0)
-	{
-		throw std::runtime_error("Decoder: Could not open codec");
-	}
-
-	ve->decoder.packet = av_packet_alloc();
-	if(!ve->decoder.packet)
-	{
-		throw std::runtime_error("Decoder: Could not alloc packet!");
-	}
-
 	std::string outfilename = "CLIENTpgmh264encoding" + std::to_string(ve->num_frames) + ".pgm";
 
 
-	ve->decoder.frame = av_frame_alloc();
-	if(!ve->decoder.frame)
-	{
-		throw std::runtime_error("Decoder: Could not allocate video frame");
-	}
-
-	printf("waiting to recv\n");
 	uint32_t pktsize[1];
 	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
-	printf("Successfully recv'd, pktsize: %d\n", pktsize[0]);
 	int eof;
 	bool should_break = false;
 
-	printf("Waiting to recv encoded data\n");
 	int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
 	uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
-	printf("Received encoded data\n");
 
 	int in_line_size[1] = {2 * ve->decoder.c->width};
 	eof = !data_size;
@@ -863,9 +853,6 @@ static void *begin_video_decoding(void* host_renderer)
 			break;
 		}
 	}
-
-	av_frame_free(&ve->decoder.frame);
-	av_packet_free(&ve->decoder.packet);
 
 	return nullptr;
 }
@@ -942,9 +929,7 @@ void *send_camera_data(void *devicerenderer)
 		ve->camera.rotation.z,
 	};
 
-	printf("Right before camerasend call\n");
 	send(ve->client.socket_fd[1], camera_data, 6 * sizeof(float), 0);
-	printf("Camera data sent\n");
 	timeval send_cameradata_time_end;
 	gettimeofday(&send_cameradata_time_end, nullptr);
 	ve->timers.send_cameradata_time.push_back(vku::time_difference(ve->tmp_start_timers.send_cameradata_time, send_cameradata_time_end));
@@ -1824,13 +1809,7 @@ void VulkanExample::draw()
 	submitInfo.pCommandBuffers    = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
-	// Join after all the normal client rendering is done, at the latest point possible
-	//pthread_join(vk_pthread.right_receive_image, nullptr);
-	//pthread_join(vk_pthread.receive_image, nullptr);
 	pthread_join(vk_pthread.receive_image, nullptr);
-	printf("Video decoding done\n");
-	
-
 
 
 	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
@@ -1895,8 +1874,6 @@ void VulkanExample::draw()
 		.imageOffset       = righteye_image_offset,
 		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
 	};
-
-	printf("Right before copying buffer to image\n");
 
 	// Perform copy
 	vkCmdCopyBufferToImage(copy_cmdbuf,
@@ -2063,8 +2040,6 @@ void VulkanExample::draw()
 	// Submit frame to be drawn
 	VulkanExampleBase::submitFrame();
 	
-	//pthread_join(vk_pthread.send_thread, nullptr);
-
 	pthread_join(vk_pthread.send_thread, nullptr);
 
 	total_fps += lastFPS;
