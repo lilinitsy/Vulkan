@@ -1339,13 +1339,10 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 	if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 	{
 		// dbg section
-		printf("Ret was an error\n");
 		// Send garbage data twice to advance shit
 		uint32_t garbage = 4;
 		int sendret = send(ve->server.client_fd[0], &garbage, sizeof(uint32_t), 0);
-		printf("garbage sendret: %d\n", sendret);
 		send(ve->server.client_fd[0], &garbage, sizeof(garbage), 0);			
-		printf("Sent sucessfully from garbage section\n");
 	}
 
 	else if(ret < 0)
@@ -1355,16 +1352,8 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 
 	else
 	{
-		printf("Write packet %3" PRId64 " (size=%5d)\n", packet->pts, packet->size);
-
-		// send from here?
-		//fwrite(packet->data, 1, packet->size, outfile);
-		//av_packet_unref(packet);
-		printf("About to send packet size\n");
 		send(ve->server.client_fd[0], &packet->size, sizeof(packet->size), 0);
-		printf("Packet size sent. Now sending packet\n");
 		ssize_t sendret = send(ve->server.client_fd[0], &packet->data[0], packet->size, 0);
-		printf("Sendret: %zd\n", sendret);
 		ve->should_wait_for_camera_data = true;
 	}
 }
@@ -1392,6 +1381,8 @@ void VulkanExample::setup_video_encoder()
 		fprintf(stderr, "Could not allocate video codec context\n");
 		exit(1);
 	}
+
+	encoder.packet = av_packet_alloc();
 }
 
 
@@ -1428,7 +1419,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	std::string filename = "h264encoding" + std::to_string(ve->numframes) + ".mp4";
 
 
-	ve->encoder.packet = av_packet_alloc();
+	//ve->encoder.packet = av_packet_alloc();
 	if(!ve->encoder.packet)
 		exit(1);
 
@@ -1506,27 +1497,11 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	ve->encoder.frame->pts = 0;
 	sws_scale(sws_ctx, in_data, in_line_size, 0, ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
 
-	/* encode the image */
 	encode(ve, ve->encoder.c, ve->encoder.frame, ve->encoder.packet, f);
 	
 	vkUnmapMemory(ve->device, ve->foveal_regions.buffer.memory);
 
-	/* flush the encoder */
-	// encode(encoder.c, NULL, encoder.packet, f);
-
-	/* Add sequence end code to have a real MPEG file.
-       It makes only sense because this tiny examples writes packets
-       directly. This is called "elementary stream" and only works for some
-       codecs. To create a valid file, you usually need to write packets
-       into a proper file format or protocol; see muxing.c.
-     */
-
-
-
-
-	//avcodec_free_context(&encoder.c);
 	av_frame_free(&ve->encoder.frame);
-	av_packet_free(&ve->encoder.packet);
 
 	return nullptr;
 }
@@ -1967,7 +1942,6 @@ void VulkanExample::draw()
 	uint8_t left_out_U_h[input_framesize_bytes / 4];
 	uint8_t left_out_V_h[input_framesize_bytes / 4];
 	//rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, left_out_Y_h, left_out_U_h, left_out_V_h, input_framesize_bytes);
-	//setup_video_encoder();
 
 	timeval encodestarttime;
 	timeval encodeendtime;
@@ -1983,13 +1957,6 @@ void VulkanExample::draw()
 	gettimeofday(&encodeendtime, nullptr);
 
 	float encodetimediff = vku::time_difference((encodestarttime), encodeendtime);
-	printf("Encode time diff: %f\n", encodetimediff);
-
-	//int left_image_send  = pthread_create(&vk_pthread.send_image, nullptr, send_image_to_client, this);
-	//int right_image_send = pthread_create(&vk_pthread.right_send_image, nullptr, send_image_to_client2, this);
-
-	//pthread_join(vk_pthread.send_image, nullptr);
-	//pthread_join(vk_pthread.right_send_image, nullptr);
 
 	pthread_join(vk_pthread.recv_camera, nullptr);
 
@@ -2081,40 +2048,6 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 		foveal_regions.buffer.buffer, 
 		1, 
 		&right_copy_region);
-
-
-	// Copy left image
-	/*VkImageCopy image_copy_region{};
-	image_copy_region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	image_copy_region.srcSubresource.layerCount = 1;
-	image_copy_region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	image_copy_region.dstSubresource.layerCount = 1;
-	image_copy_region.srcOffset                 = left_offset;
-	image_copy_region.extent.width              = FOVEAWIDTH;
-	image_copy_region.extent.height             = FOVEAHEIGHT;
-	image_copy_region.extent.depth              = 1;
-
-
-
-
-	
-	vkCmdCopyImage(copy_cmdbuffer,
-	               src_image,
-	               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-	               dst.image,
-	               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	               1,
-	               &image_copy_region);
-	
-	// Copy right region -- only need to change srcOffset
-	image_copy_region.srcOffset = right_offset;
-	vkCmdCopyImage(copy_cmdbuffer,
-	               src_image,
-	               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-	               dst.image,
-	               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	               1,
-	               &image_copy_region);*/
 
 	// transition swapchain image back now that copying is done
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
