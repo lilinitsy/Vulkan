@@ -1383,6 +1383,7 @@ void VulkanExample::setup_video_encoder()
 	}
 
 	encoder.packet = av_packet_alloc();
+	encoder.frame = av_frame_alloc();
 }
 
 
@@ -1454,7 +1455,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 		throw std::runtime_error("Could not open codec!");
 	}
 
-	ve->encoder.frame = av_frame_alloc();
+	//ve->encoder.frame = av_frame_alloc();
 	ve->encoder.frame->format = AV_PIX_FMT_YUV444P;
 	ve->encoder.frame->width = 2 * FOVEAWIDTH;
 	ve->encoder.frame->height = FOVEAHEIGHT;
@@ -1501,7 +1502,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	
 	vkUnmapMemory(ve->device, ve->foveal_regions.buffer.memory);
 
-	av_frame_free(&ve->encoder.frame);
+	//av_frame_free(&ve->encoder.frame);
 
 	return nullptr;
 }
@@ -1595,6 +1596,7 @@ void VulkanExample::begin_video_decoding()
 	{
 		throw std::runtime_error("Decoder: Could not alloc packet!");
 	}
+	
 
 	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
 	uint8_t *data;
