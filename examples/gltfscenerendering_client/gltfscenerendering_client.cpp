@@ -1645,28 +1645,28 @@ void VulkanExample::setup_opencl()
 
 	// Load kernel
 	std::string rgb_to_rgba_kernel_str_code = 
-		"kernel void cl_rgba_to_rgb(global const char *in, global char *out_Y, global char *out_U, global char *out_V, global char *out_A)"
+		"kernel void cl_rgba_to_rgb(global const char *in_Y, global const char *in_U, global const char *in_V, global char *out)"
 		"{"
-		"	int in_idx = get_global_id(0);"
+		"	int idx = get_global_id(0);"
 
-		"	if(in_idx % 4 == 0)"
+		"	if(idx % 4 == 0)"
 		"	{"
-		"		out_Y[in_idx / 4] = in[in_idx];"
+		"		in[idx] = in_Y[idx / 4];"
 		"	}"
 
-		"	else if(in_idx % 4 == 1)"
+		"	else if(idx % 4 == 1)"
 		"	{"
-		"		out_U[in_idx / 4] = in[in_idx];"
+		"		in[idx] = in_U[idx / 4];"
 		"	}"
 
-		"	else if(in_idx % 4 == 2)"
+		"	else if(idx % 4 == 2)"
 		"	{"
-		"		out_V[in_idx / 4] = in[in_idx];"
+		"		in[idx] = in_V[idx / 4];"
 		"	}"
 
-		"	else if(in_idx % 4 == 3)"
+		"	else if(idx % 4 == 3)"
 		"	{"
-		"		out_A[in_idx / 4] = in[in_idx];"
+		"		in[idx] = 255;"
 		"	}"
 
 		"	barrier(CLK_GLOBAL_MEM_FENCE);"
