@@ -10,7 +10,7 @@ android {
         buildToolsVersion "32.0.0"
         ndkVersion "23.0.7344513-rc4"
         applicationId "de.saschawillems.vulkanScenerendering"
-        minSdkVersion 19
+        minSdkVersion 26
         targetSdkVersion 26
         versionCode 1
         versionName "1.0"
