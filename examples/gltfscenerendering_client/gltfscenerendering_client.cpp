@@ -16,6 +16,7 @@
 
 #include "gltfscenerendering_client.h"
 #include "vk_utils.h"
+#include <CL/opencl.hpp>
 #include <cstdint>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
@@ -788,7 +789,14 @@ static void decode(void *host_renderer)
 		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
 		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
 
-		unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
+		uint8_t *ybuf = frame->data[0];
+		uint8_t *ubuf = frame->data[1];
+		uint8_t *vbuf = frame->data[2];
+		uint8_t out_rgba_H[num_bytes_for_images];
+		ve->rgb_to_rgba_opencl(ybuf, ubuf, vbuf, out_rgba_H, num_bytes_for_images);
+		
+
+		/*unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
 		unsigned char *ybuf = frame->data[0];
 		unsigned char *ubuf = frame->data[1];
 		unsigned char *vbuf = frame->data[2];
@@ -798,10 +806,10 @@ static void decode(void *host_renderer)
 			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
 			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
 			rgba_frame[i + 3] = 255;
-		}
+		}*/
 
 		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
+		memcpy(ve->server_image.data, out_rgba_H, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
 		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 		//pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
 	}
@@ -855,6 +863,27 @@ static void *begin_video_decoding(void* host_renderer)
 	}
 
 	return nullptr;
+}
+
+
+void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t out_len)
+{
+	size_t in_len = out_len / 4;
+	cl::Buffer in_Y_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
+	cl::Buffer in_U_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
+	cl::Buffer in_V_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
+	cl::Buffer out_rgba_D(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
+
+	cl.queue.enqueueWriteBuffer(in_Y_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_Y_h);
+	cl.queue.enqueueWriteBuffer(in_U_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_U_h);
+	cl.queue.enqueueWriteBuffer(in_V_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_V_h);
+
+	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgb_to_rgba(cl::Kernel(cl.alpha_addition_program, "cl_rgb_to_rgba"));
+	cl::NDRange global(out_len);
+	cl_rgb_to_rgba(cl::EnqueueArgs(cl.queue, global), in_Y_d, in_U_d, in_V_d, out_rgba_D).wait();
+
+	cl.queue.enqueueReadBuffer(out_rgba_D, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_rgba_H);
+
 }
 
 
@@ -1643,30 +1672,38 @@ void VulkanExample::setup_opencl()
 	cl::CommandQueue cmdqueue(cl.context, cl.device);
 	cl.queue = cmdqueue;
 
+	/*
+	rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
+	rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
+	rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
+
+	*/
+
 	// Load kernel
 	std::string rgb_to_rgba_kernel_str_code = 
-		"kernel void cl_rgba_to_rgb(global const char *in_Y, global const char *in_U, global const char *in_V, global char *out)"
+		"kernel void cl_rgb_to_rgba(global const unsigned char *in_Y, global const unsigned char *in_U, global const unsigned char *in_V, global unsigned char *out)"
 		"{"
 		"	int idx = get_global_id(0);"
+		"	int in_idx = idx / 4;"
 
 		"	if(idx % 4 == 0)"
-		"	{"
-		"		in[idx] = in_Y[idx / 4];"
+		"	{"	
+		"		out[idx] = in_Y[in_idx] + 1.40200 * (in_V[in_idx] - 128);"
 		"	}"
 
 		"	else if(idx % 4 == 1)"
 		"	{"
-		"		in[idx] = in_U[idx / 4];"
+		"		out[idx] = in_Y[in_idx] - 0.34414 * (in_U[in_idx] - 128) - 0.71414 * (in_V[in_idx] - 128);"
 		"	}"
 
 		"	else if(idx % 4 == 2)"
 		"	{"
-		"		in[idx] = in_V[idx / 4];"
+		"		out[idx] = in_Y[in_idx] + 1.77200 * (in_U[in_idx] - 128);"
 		"	}"
 
 		"	else if(idx % 4 == 3)"
 		"	{"
-		"		in[idx] = 255;"
+		"		out[idx] = 255;"
 		"	}"
 
 		"	barrier(CLK_GLOBAL_MEM_FENCE);"
@@ -1681,79 +1718,13 @@ void VulkanExample::setup_opencl()
 		std::cout << "Error building: " << cl.alpha_addition_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
 		exit(-1);
 	}
-
-
-	// Tests for kernel
-	char *in_h = new char[16];
-	char *out_Y_h = new char[4];
-	char *out_U_h = new char[4];
-	char *out_V_h = new char[4];
-
-	for(uint32_t i = 0; i < 16; i++)
-	{
-		if(i % 4 == 0)
-		{
-			in_h[i] = (char) 1;
-		}
-
-		else if(i % 4 == 1)
-		{
-			in_h[i] = (char) 2;
-		}
-		
-		else if(i % 4 == 2)
-		{
-			in_h[i] = (char) 3;
-		}
-
-		else
-		{
-			in_h[i] = (char) 4;
-		}
-	}
-	
-
-	for(uint32_t i = 0; i < 16; i++)
-	{
-		printf("%d in_h: %d\n", i, in_h[i]);
-	}
-
-	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(char) * 16);
-	cl::Buffer out_Y_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
-	cl::Buffer out_U_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
-	cl::Buffer out_V_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
-
-	cl.queue.enqueueWriteBuffer(in_d, CL_TRUE, 0, sizeof(char) * 16, in_h);
-
-	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_addition_program, "cl_rgba_to_rgb"));
-	cl::NDRange global(16);
-	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_Y_d, out_U_d, out_V_d).wait();
-
-	cl.queue.enqueueReadBuffer(out_Y_d, CL_TRUE, 0, sizeof(char) * 4, out_Y_h);
-	cl.queue.enqueueReadBuffer(out_U_d, CL_TRUE, 0, sizeof(char) * 4, out_U_h);
-	cl.queue.enqueueReadBuffer(out_V_d, CL_TRUE, 0, sizeof(char) * 4, out_V_h);
-
-	for(uint32_t i = 0; i < 4; i++)
-	{
-		printf("%d out_Y_h: %d\n", i, out_Y_h[i]);
-	}
-
-	for(uint32_t i = 0; i < 4; i++)
-	{
-		printf("%d out_U_h: %d\n", i, out_U_h[i]);
-	}
-
-	for(uint32_t i = 0; i < 4; i++)
-	{
-		printf("%d out_V_h: %d\n", i, out_V_h[i]);
-	}
 }
 
 
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
-	//setup_opencl();
+	setup_opencl();
 	setup_video_decoder();
 	loadAssets();
 	setup_multiview();

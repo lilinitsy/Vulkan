@@ -774,7 +774,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// DO NOT drawUI in the multiview pass.
-			//drawUI(drawCmdBuffers[i]);
+			drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}

@@ -349,10 +349,9 @@ class VulkanExample : public VulkanExampleBase
 	void setup_video_decoder();
 	// void begin_video_decoding();
 	// void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
-
+	
 	void setup_opencl();
-	void rgb_to_rgba_opencl(const uint8_t *__restrict in_h, uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, size_t len);
-
+	void rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t len);
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);
