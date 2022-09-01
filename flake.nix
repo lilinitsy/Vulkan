@@ -10,6 +10,7 @@
               "tools" # Android SDK tools
             ];
         };
+
         androidComposition = (pkgs.androidenv.override {
           licenseAccepted = true;
         }).composeAndroidPackages {
@@ -22,8 +23,37 @@
           platformToolsVersion = "33.0.1";
           toolsVersion = "26.1.1";
         };
+
+        ndk = "${androidComposition.androidsdk}/libexec/android-sdk/ndk-bundle";
+        sysroot = "${ndk}/toolchains/llvm/prebuilt/linux-x86_64/sysroot";
+
+        android-ffmpeg = pkgs.stdenvNoCC.mkDerivation {
+          pname = "android-ffmpeg";
+          version = "5.1.1";
+          src = pkgs.fetchzip {
+            url = "https://ffmpeg.org/releases/ffmpeg-5.1.1.tar.xz";
+            hash = "sha256-IQelw+Bv8Dy6oTdhByveaij0CRaO5CKVON4RmaAx9iY=";
+          };
+          configureFlags = [
+            "--ar=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+            "--cc=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+            "--cxx=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++"
+            "--ld=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+            "--nm=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-nm"
+            "--ranlib=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib"
+            "--strip=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+            "--enable-cross-compile"
+            "--enable-static"
+            "--sysroot=${sysroot}"
+            "--arch=aarch64"
+            "--target-os=android"
+          ];
+        };
       in rec {
-        packages = { inherit (androidComposition) androidsdk; };
+        packages = {
+          inherit android-ffmpeg;
+          inherit (androidComposition) androidsdk;
+        };
         devShells.default = pkgs.mkShell {
           ANDROID_SDK_ROOT =
             "${androidComposition.androidsdk}/libexec/android-sdk";
