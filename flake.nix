@@ -43,7 +43,7 @@
             "--ranlib=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib"
             "--strip=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
             "--enable-cross-compile"
-            "--enable-static"
+            "--enable-shared"
             "--sysroot=${sysroot}"
             "--arch=aarch64"
             "--target-os=android"
@@ -63,6 +63,9 @@
 
           shellHook = ''
             export PATH=$ANDROID_SDK_ROOT/cmake/3.22.1/bin:$PATH
+            export ANDROID_FFMPEG=${packages.android-ffmpeg}
+            export NONDROID_CLHPP=${pkgs.opencl-clhpp}
+            export NONDROID_CL_HEADERS=${pkgs.opencl-headers}
           '';
 
           nativeBuildInputs = [
