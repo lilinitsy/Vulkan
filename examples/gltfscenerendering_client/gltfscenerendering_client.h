@@ -23,7 +23,7 @@
 	#include <libavutil/imgutils.h>
 }
 
-#include <CL/opencl.hpp>
+//#include <CL/opencl.hpp>
 
 
 #define TINYGLTF_IMPLEMENTATION
@@ -44,10 +44,10 @@
 const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH  = 2400;
-const uint32_t SERVERHEIGHT = 1080;
-const uint32_t CLIENTWIDTH  = 2400;
-const uint32_t CLIENTHEIGHT = 1080;
+const uint32_t SERVERWIDTH  = 1600;
+const uint32_t SERVERHEIGHT = 720;
+const uint32_t CLIENTWIDTH  = 1600;
+const uint32_t CLIENTHEIGHT = 720;
 
 // downsampled width
 const uint32_t DOWN_SWIDTH  = 1600;
@@ -310,7 +310,7 @@ class VulkanExample : public VulkanExampleBase
 
 	bool enable_multiview = true;
 
-	struct
+	/*struct
 	{
 		cl::Context context;
 		cl::Platform platform;
@@ -318,7 +318,7 @@ class VulkanExample : public VulkanExampleBase
 		cl::CommandQueue queue;
 		cl::Program alpha_addition_program;
 		cl::Program::Sources sources;
-	} cl;
+	} cl;*/
 
 	struct
 	{
@@ -350,8 +350,8 @@ class VulkanExample : public VulkanExampleBase
 	// void begin_video_decoding();
 	// void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
 	
-	void setup_opencl();
-	void rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t len);
+	//void setup_opencl();
+	//void rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t len);
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);

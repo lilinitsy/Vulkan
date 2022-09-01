@@ -16,7 +16,7 @@
 
 #include "gltfscenerendering_client.h"
 #include "vk_utils.h"
-#include <CL/opencl.hpp>
+//#include <CL/opencl.hpp>
 #include <cstdint>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
@@ -789,14 +789,14 @@ static void decode(void *host_renderer)
 		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
 		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
 
-		uint8_t *ybuf = frame->data[0];
+		/*uint8_t *ybuf = frame->data[0];
 		uint8_t *ubuf = frame->data[1];
 		uint8_t *vbuf = frame->data[2];
 		uint8_t out_rgba_H[num_bytes_for_images];
 		ve->rgb_to_rgba_opencl(ybuf, ubuf, vbuf, out_rgba_H, num_bytes_for_images);
-		
+		*/
 
-		/*unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
+		unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
 		unsigned char *ybuf = frame->data[0];
 		unsigned char *ubuf = frame->data[1];
 		unsigned char *vbuf = frame->data[2];
@@ -806,10 +806,10 @@ static void decode(void *host_renderer)
 			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
 			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
 			rgba_frame[i + 3] = 255;
-		}*/
+		}
 
 		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		memcpy(ve->server_image.data, out_rgba_H, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
+		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
 		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 		//pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
 	}
@@ -866,7 +866,7 @@ static void *begin_video_decoding(void* host_renderer)
 }
 
 
-void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t out_len)
+/*void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t out_len)
 {
 	size_t in_len = out_len / 4;
 	cl::Buffer in_Y_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
@@ -883,8 +883,7 @@ void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__
 	cl_rgb_to_rgba(cl::EnqueueArgs(cl.queue, global), in_Y_d, in_U_d, in_V_d, out_rgba_D).wait();
 
 	cl.queue.enqueueReadBuffer(out_rgba_D, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_rgba_H);
-
-}
+}*/
 
 
 
@@ -1648,7 +1647,7 @@ void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAc
 
 
 
-
+/*
 void VulkanExample::setup_opencl()
 {
 	std::vector<cl::Platform> all_platforms;
@@ -1678,7 +1677,7 @@ void VulkanExample::setup_opencl()
 	rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
 
 	*/
-
+/*
 	// Load kernel
 	std::string rgb_to_rgba_kernel_str_code = 
 		"kernel void cl_rgb_to_rgba(global const unsigned char *in_Y, global const unsigned char *in_U, global const unsigned char *in_V, global unsigned char *out)"
@@ -1718,13 +1717,13 @@ void VulkanExample::setup_opencl()
 		std::cout << "Error building: " << cl.alpha_addition_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
 		exit(-1);
 	}
-}
+}*/
 
 
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
-	setup_opencl();
+	//setup_opencl();
 	setup_video_decoder();
 	loadAssets();
 	setup_multiview();
