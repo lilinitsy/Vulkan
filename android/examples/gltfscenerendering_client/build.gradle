@@ -55,18 +55,26 @@ task copyTask {
     }
 
     copy {
-       from '../../../data/shaders/glsl/gltfscenerendering_client'
-       into 'assets/shaders/glsl/gltfscenerendering_client'
-       include '*.*'
+        from '../../../data/shaders/glsl/gltfscenerendering_client'
+        into 'assets/shaders/glsl/gltfscenerendering_client'
+        include '*.*'
     }
 
     copy {
-       from '../../../data/models/sponza'
-       into 'assets/models/sponza'
-       include '*.*'
+        from '../../../data/models/sponza'
+        into 'assets/models/sponza'
+        include '*.*'
     }
 
+    copy {
+        from "${System.env.ANDROID_FFMPEG}/lib"
+        into 'src/main/jniLibs/arm64-v8a'
+        include '*.so'
+    }
 
+    exec {
+        commandLine "bash", "-c", "chmod +w src/main/jniLibs/arm64-v8a/*.so"
+    }
 }
 
 preBuild.dependsOn copyTask
