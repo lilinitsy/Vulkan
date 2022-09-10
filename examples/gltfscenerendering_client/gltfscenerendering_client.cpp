@@ -18,7 +18,10 @@
 #include "vk_utils.h"
 //#include <CL/opencl.hpp>
 
-#include <android/log.h>
+#ifdef __ANDROID__
+	#include <android/log.h>
+#endif
+
 #include <cstdint>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
@@ -791,7 +794,10 @@ static void decode(void *host_renderer)
 		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
 		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
 
-		printf("frame->width, frame->height: %d %d\n", frame->width, frame->height);
+		#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "frame->width, frame->height: %d %d\n", frame->width, frame->height);
+		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "decoder num_bytes %lu\n", decoder_rgba_num_bytes);
+		#endif
 
 		/*uint8_t *ybuf = frame->data[0];
 		uint8_t *ubuf = frame->data[1];
@@ -800,18 +806,31 @@ static void decode(void *host_renderer)
 		ve->rgb_to_rgba_opencl(ybuf, ubuf, vbuf, out_rgba_H, num_bytes_for_images);
 		*/
 
-		/*unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
-		unsigned char *ybuf = frame->data[0];
-		unsigned char *ubuf = frame->data[1];
-		unsigned char *vbuf = frame->data[2];
-		for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
-		{
-			rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
-			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
-			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
-			rgba_frame[i + 3] = 255;
-		}
-		*/
+		//unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
+		//unsigned char *ybuf = frame->data[0];
+		//unsigned char *ubuf = frame->data[1];
+		//unsigned char *vbuf = frame->data[2];
+		#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "GOT BEFORE FOR LOOP\n");
+		#endif
+
+
+		//for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
+		//{
+			#ifdef __ANDROID__
+			//__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "i, j: %d %d\n", i, j);
+			#endif
+			//rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
+			//rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
+			//rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
+			//rgba_frame[i + 3] = 255;
+		//}
+		#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "GOT OUT OF FOR LOOP\n");
+		#endif
+
+
+		
 		//vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
 		//memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
 		//vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
