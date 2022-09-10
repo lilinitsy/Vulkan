@@ -17,6 +17,8 @@
 #include "gltfscenerendering_client.h"
 #include "vk_utils.h"
 //#include <CL/opencl.hpp>
+
+#include <android/log.h>
 #include <cstdint>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
@@ -789,6 +791,8 @@ static void decode(void *host_renderer)
 		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
 		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
 
+		printf("frame->width, frame->height: %d %d\n", frame->width, frame->height);
+
 		/*uint8_t *ybuf = frame->data[0];
 		uint8_t *ubuf = frame->data[1];
 		uint8_t *vbuf = frame->data[2];
@@ -796,7 +800,7 @@ static void decode(void *host_renderer)
 		ve->rgb_to_rgba_opencl(ybuf, ubuf, vbuf, out_rgba_H, num_bytes_for_images);
 		*/
 
-		unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
+		/*unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
 		unsigned char *ybuf = frame->data[0];
 		unsigned char *ubuf = frame->data[1];
 		unsigned char *vbuf = frame->data[2];
@@ -807,10 +811,10 @@ static void decode(void *host_renderer)
 			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
 			rgba_frame[i + 3] = 255;
 		}
-
-		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
-		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
+		*/
+		//vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
+		//memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
+		//vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 		//pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
 	}
 }
@@ -834,7 +838,7 @@ static void *begin_video_decoding(void* host_renderer)
 	eof = !data_size;
 	uint8_t *data[1] = {ve->servbuf};
 	ve->decoder.frame->format = AV_PIX_FMT_RGBA;
-
+	
 	while(data_size > 0 || eof)
 	{
 		//printf("%d In loop of begin_decoder\n", num_frames);
@@ -1845,7 +1849,7 @@ void VulkanExample::draw()
 
 
 	// Perform copy
-	vkCmdCopyBufferToImage(copy_cmdbuf,
+	/*vkCmdCopyBufferToImage(copy_cmdbuf,
 	                       server_image.buffer.buffer,
 	                       swapChain.images[currentBuffer],
 	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1856,7 +1860,7 @@ void VulkanExample::draw()
 	                       swapChain.images[currentBuffer],
 	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 	                       1, &right_copy_region);
-
+	*/
 
 
 	// Transition swapchain image back to present src khr
