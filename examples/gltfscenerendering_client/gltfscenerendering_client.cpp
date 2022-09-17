@@ -15,7 +15,9 @@
  */
 
 #include "gltfscenerendering_client.h"
+#include "VulkanInitializers.hpp"
 #include "vk_utils.h"
+#include "vulkan/vulkan_core.h"
 //#include <CL/opencl.hpp>
 
 #ifdef __ANDROID__
@@ -806,34 +808,43 @@ static void decode(void *host_renderer)
 		ve->rgb_to_rgba_opencl(ybuf, ubuf, vbuf, out_rgba_H, num_bytes_for_images);
 		*/
 
-		//unsigned char rgba_frame[frame->width * frame->height * sizeof(uint32_t)];
-		//unsigned char *ybuf = frame->data[0];
-		//unsigned char *ubuf = frame->data[1];
-		//unsigned char *vbuf = frame->data[2];
+		//unsigned char rgba_frame[decoder_rgba_num_bytes];
+		
+		unsigned char *ybuf = frame->data[0];
+		unsigned char *ubuf = frame->data[1];
+		unsigned char *vbuf = frame->data[2];
 		#ifdef __ANDROID__
 		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "GOT BEFORE FOR LOOP\n");
 		#endif
 
 
-		//for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
-		//{
+		unsigned char *rgba_frame = new unsigned char[frame->width * frame->height * sizeof(uint32_t)];
+
+		for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
+		{
 			#ifdef __ANDROID__
 			//__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "i, j: %d %d\n", i, j);
 			#endif
-			//rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
-			//rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
-			//rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
-			//rgba_frame[i + 3] = 255;
-		//}
+			rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
+			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
+			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
+			rgba_frame[i + 3] = 255;
+		}
 		#ifdef __ANDROID__
 		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "GOT OUT OF FOR LOOP\n");
 		#endif
 
 
 		
-		//vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		//memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
-		//vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
+		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
+		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
+		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
+		
+		#ifdef __ANDROID__
+		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "MEMCPY'D INTO GPU\n");
+		#endif
+
+		delete[] rgba_frame;
 		//pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
 	}
 }
@@ -1746,6 +1757,7 @@ void VulkanExample::setup_opencl()
 void VulkanExample::prepare()
 {
 	VulkanExampleBase::prepare();
+	//rgba_frame = new uint8_t[FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t)];
 	//setup_opencl();
 	setup_video_decoder();
 	loadAssets();
@@ -1868,7 +1880,7 @@ void VulkanExample::draw()
 
 
 	// Perform copy
-	/*vkCmdCopyBufferToImage(copy_cmdbuf,
+	vkCmdCopyBufferToImage(copy_cmdbuf,
 	                       server_image.buffer.buffer,
 	                       swapChain.images[currentBuffer],
 	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1879,7 +1891,7 @@ void VulkanExample::draw()
 	                       swapChain.images[currentBuffer],
 	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 	                       1, &right_copy_region);
-	*/
+	
 
 
 	// Transition swapchain image back to present src khr

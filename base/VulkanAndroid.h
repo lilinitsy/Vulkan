@@ -175,6 +175,8 @@ namespace vks
 		void freeVulkanLibrary();
 		void getDeviceConfig();
 		void showAlert(const char* message);
+
+		bool loadOpenCLLibrary();
 	}
 }
 

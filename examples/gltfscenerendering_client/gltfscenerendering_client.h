@@ -44,10 +44,10 @@
 const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH  = 2400;
-const uint32_t SERVERHEIGHT = 1080;
-const uint32_t CLIENTWIDTH  = 2400;
-const uint32_t CLIENTHEIGHT = 1080;
+const uint32_t SERVERWIDTH  = 1600;
+const uint32_t SERVERHEIGHT = 720;
+const uint32_t CLIENTWIDTH  = 1600;
+const uint32_t CLIENTHEIGHT = 720;
 
 // downsampled width
 const uint32_t DOWN_SWIDTH  = 1600;
@@ -296,6 +296,7 @@ class VulkanExample : public VulkanExampleBase
 	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
 	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
 	uint8_t servbuf[FOVEAWIDTH * 2 * FOVEAHEIGHT * 3];
+	//uint8_t *rgba_frame;
 
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};

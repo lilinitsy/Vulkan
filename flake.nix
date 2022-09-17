@@ -53,6 +53,20 @@
         packages = {
           inherit android-ffmpeg;
           inherit (androidComposition) androidsdk;
+
+          mesa = ((pkgs.pkgsCross.aarch64-android-prebuilt.mesa.override {
+            enableGalliumNine = false;
+            enableOpenCL = true;
+            galliumDrivers = [ "freedreno" "swrast" ];
+            vulkanDrivers = [ "freedreno" ];
+          }).overrideAttrs (old: {
+            preConfigure = ''
+              export CC=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang
+              export CC_FOR_BUILD=gcc
+              export CXX=${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++
+              export CXX_FOR_BUILD=g++
+            '';
+          })).opencl;
         };
         devShells.default = pkgs.mkShell {
           ANDROID_SDK_ROOT =
