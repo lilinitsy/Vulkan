@@ -23,7 +23,7 @@
 	#include <libavutil/imgutils.h>
 }
 
-//#include <CL/opencl.hpp>
+#include <CL/opencl.hpp>
 
 
 #define TINYGLTF_IMPLEMENTATION
@@ -273,25 +273,13 @@ class VulkanExample : public VulkanExampleBase
 	// Individual timing data
 	struct
 	{
-		std::vector<float> recv_swapchain_times_total;
+		std::vector<float> recv_swapchain_time;
 		std::vector<float> send_cameradata_time;
-		std::vector<float> alpha_add_time;
-		std::vector<float> copy_into_swapchain_time;
+		std::vector<float> decode_time;
+		std::vector<float> copy_into_swapchain_time; // overhead from merging frames
 		std::vector<float> drawtime; // net frame time
 		std::vector<float> mbps_total_bandwidth;
-		std::vector<float> fps;
 	} timers;
-
-	struct
-	{
-		float mbps_left;
-		float mbps_right;
-		float recv_swapchain_time1;
-		float recv_swapchain_time2;
-		timeval recv_swapchain_image1_start_time;
-		timeval recv_swapchain_image2_start_time;
-		timeval send_cameradata_time;
-	} tmp_start_timers;
 
 	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
 	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
@@ -311,7 +299,7 @@ class VulkanExample : public VulkanExampleBase
 
 	bool enable_multiview = true;
 
-	/*struct
+	struct
 	{
 		cl::Context context;
 		cl::Platform platform;
@@ -319,7 +307,7 @@ class VulkanExample : public VulkanExampleBase
 		cl::CommandQueue queue;
 		cl::Program alpha_addition_program;
 		cl::Program::Sources sources;
-	} cl;*/
+	} cl;
 
 	struct
 	{
@@ -348,11 +336,9 @@ class VulkanExample : public VulkanExampleBase
 	void setup_multisample_target();
 
 	void setup_video_decoder();
-	// void begin_video_decoding();
-	// void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
 	
-	//void setup_opencl();
-	//void rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t len);
+	void setup_opencl();
+	void rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t len);
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);

@@ -56,16 +56,16 @@ extern "C"
 const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH  = 1600;
-const uint32_t SERVERHEIGHT = 720;
-const uint32_t CLIENTWIDTH  = 1600;
-const uint32_t CLIENTHEIGHT = 720;
+const uint32_t SERVERWIDTH  = 2560;
+const uint32_t SERVERHEIGHT = 1440;
+const uint32_t CLIENTWIDTH  = 2560;
+const uint32_t CLIENTHEIGHT = 1440;
 
 
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 480;
-const uint32_t FOVEAHEIGHT = 272;
+const uint32_t FOVEAHEIGHT = 320;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
@@ -263,16 +263,9 @@ class VulkanExample : public VulkanExampleBase
 	struct
 	{
 		std::vector<float> drawtime;
+		std::vector<float> encode_time;
 		std::vector<float> copy_image_time;
-		std::vector<float> remove_alpha_time;
 	} timers;
-
-	struct
-	{
-		float left_remove_alpha_time;
-		float right_remove_alpha_time;
-	} tmp_timers;
-
 
 	struct
 	{

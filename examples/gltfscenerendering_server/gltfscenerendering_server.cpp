@@ -1687,53 +1687,6 @@ void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t
 }
 
 
-
-void *send_image_to_client(void *hostrenderer)
-{
-	VulkanExample *ve = (VulkanExample *) hostrenderer;
-
-	uint32_t idx                  = 0;
-	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-
-	timeval start_alpha_remove;
-	timeval end_alpha_remove;
-	gettimeofday(&start_alpha_remove, nullptr);
-	uint8_t sendpacket[output_framesize_bytes];
-	vku::rgba_to_rgb((uint8_t *) ve->lefteye_fovea.data, sendpacket, input_framesize_bytes);
-	gettimeofday(&end_alpha_remove, nullptr);
-
-	ve->tmp_timers.left_remove_alpha_time = vku::time_difference(start_alpha_remove, end_alpha_remove);
-
-	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
-
-	return nullptr;
-}
-
-void *send_image_to_client2(void *hostrenderer)
-{
-	VulkanExample *ve = (VulkanExample *) hostrenderer;
-
-	uint32_t idx                  = 1;
-	size_t output_framesize_bytes = FOVEAWIDTH * FOVEAHEIGHT * 3;
-	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-
-	timeval start_alpha_remove;
-	timeval end_alpha_remove;
-	gettimeofday(&start_alpha_remove, nullptr);
-	uint8_t sendpacket[output_framesize_bytes];
-	vku::rgba_to_rgb((uint8_t *) ve->righteye_fovea.data, sendpacket, input_framesize_bytes);
-	gettimeofday(&end_alpha_remove, nullptr);
-
-	ve->tmp_timers.right_remove_alpha_time = vku::time_difference(start_alpha_remove, end_alpha_remove);
-
-	send(ve->server.client_fd[idx], sendpacket, output_framesize_bytes, 0);
-
-
-	return nullptr;
-}
-
-
 void VulkanExample::setup_opencl()
 {
 	std::vector<cl::Platform> all_platforms;
@@ -1951,9 +1904,9 @@ void VulkanExample::draw()
 	
 
 	int left_image_send_encode = pthread_create(&vk_pthread.send_image, nullptr, begin_video_encoding, this);
+	int receive_camera_thread = pthread_create(&vk_pthread.recv_camera, nullptr, receive_camera_data, this);
 	pthread_join(vk_pthread.send_image, nullptr);
 
-	int receive_camera_thread = pthread_create(&vk_pthread.recv_camera, nullptr, receive_camera_data, this);
 
 	// need to adjust this cause it's no longer accurate...
 	gettimeofday(&encodeendtime, nullptr);
@@ -1962,7 +1915,13 @@ void VulkanExample::draw()
 
 	pthread_join(vk_pthread.recv_camera, nullptr);
 
-	timers.remove_alpha_time.push_back(std::max(tmp_timers.left_remove_alpha_time, tmp_timers.right_remove_alpha_time));
+	timers.encode_time.push_back(vku::time_difference(encodestarttime, encodeendtime));
+
+	if(timers.drawtime.size() == 1024)
+	{
+		int len = 1024 * sizeof(float) * 6;
+		float databuf[len];
+	}
 
 	numframes++;
 }
