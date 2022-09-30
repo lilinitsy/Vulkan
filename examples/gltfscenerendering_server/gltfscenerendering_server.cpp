@@ -15,6 +15,7 @@
  */
 
 #include <omp.h>
+#include <sys/socket.h>
 
 #include "gltfscenerendering_server.h"
 
@@ -1267,6 +1268,26 @@ void VulkanExample::updateUniformBuffers()
 
 void VulkanExample::prepare()
 {
+	server		   = Server();
+	server.connect_to_client(PORT);
+
+	int len = 1024;
+	float databuf[len];
+	int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
+
+	std::string filename = "NATIVEDATA.tsv";
+	std::ofstream file(filename, std::ios::out | std::ios::binary);
+	file << "ms_per_frame\n";
+
+	for(size_t i = 0; i < 1024; i++)
+	{
+		std::string datapointstr = std::to_string(databuf[i]) + "\n";
+		file << datapointstr;
+	}
+
+	file.close();
+
+
 	VulkanExampleBase::prepare();
 	loadAssets();
 	setup_multiview();
@@ -1275,8 +1296,6 @@ void VulkanExample::prepare()
 	preparePipelines();
 	lefteye_fovea  = create_image_packet();
 	righteye_fovea = create_image_packet();
-	server		   = Server();
-	server.connect_to_client(PORT);
 	buildCommandBuffers();
 
 	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);

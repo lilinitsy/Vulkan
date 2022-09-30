@@ -1441,10 +1441,10 @@ void VulkanExample::render()
 	ms_per_frames.push_back(vku::time_difference(tstart, tend));
 	printf("Ms per frame: %f\n", ms_per_frames[ms_per_frames.size() - 1]);
 
-	if(ms_per_frames.size() == 2048)
+	if(ms_per_frames.size() == 1024)
 	{
-		ssize_t nbytes = 2048 * sizeof(float);
-		send(client.socket_fd, ms_per_frames.data(), nbytes, 0);
+		ssize_t nbytes = 1024 * sizeof(float);
+		send(client.socket_fd[0], ms_per_frames.data(), nbytes, 0);
 	}
 }
 
