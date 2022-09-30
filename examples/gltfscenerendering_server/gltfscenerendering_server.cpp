@@ -1273,7 +1273,7 @@ void VulkanExample::prepare()
 
 	int len = 1024;
 	float databuf[len];
-	int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
+	int server_read = recv(server.client_fd[0], databuf, len * sizeof(float), MSG_WAITALL);
 
 	std::string filename = "NATIVEDATA.tsv";
 	std::ofstream file(filename, std::ios::out | std::ios::binary);
