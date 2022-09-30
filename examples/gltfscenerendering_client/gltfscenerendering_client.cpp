@@ -869,6 +869,9 @@ static void *begin_video_decoding(void* host_renderer)
 
 	gettimeofday(&recv_image_end_time, nullptr);
 
+	float recv_time_diff = vku::time_difference(recv_image_start_time, recv_image_end_time);
+	ve->timers.mbps_total_bandwidth.push_back(recv_time_diff);
+
 	int in_line_size[1] = {2 * ve->decoder.c->width};
 	eof = !data_size;
 	uint8_t *data[1] = {ve->servbuf};
@@ -1899,6 +1902,7 @@ void VulkanExample::render()
 	gettimeofday(&tEnd, nullptr);
 
 	float ms_per_frame = vku::time_difference(tStart, tEnd);
+	printf("tStart, tEnd: %lu %lu\n", tStart.tv_usec, tEnd.tv_usec);
 	timers.drawtime.push_back(ms_per_frame);
 
 	uint32_t timer_idx = timers.drawtime.size() - 1;

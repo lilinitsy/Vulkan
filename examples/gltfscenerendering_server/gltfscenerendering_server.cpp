@@ -774,7 +774,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// DO NOT drawUI in the multiview pass.
-			drawUI(drawCmdBuffers[i]);
+			//drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1921,6 +1921,40 @@ void VulkanExample::draw()
 	{
 		int len = 1024 * sizeof(float) * 6;
 		float databuf[len];
+		int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
+
+		std::string filename = "CLIENTDATA.tsv";
+		std::ofstream file(filename, std::ios::out | std::ios::binary);
+		file << "recvswapchain\tsendcamera\tdecode\tcopyintoswap\tnetframetime\tmbps\n";
+
+		for(uint32_t i = 1; i < 1000; i++)
+		{
+			std::string datapointstr = std::to_string(databuf[i]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 1]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 2]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 3]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 4]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 5]) + "\n";
+			file << datapointstr;
+		}
+
+		file.close();
+
+		// Write server data
+		filename = "SERVERDATA.tsv";
+		std::ofstream file2(filename, std::ios::out | std::ios::binary);
+		file2 << "drawtime\tencode\tcopytime\n";
+
+		for(uint32_t i = 1; i < 1000; i++)
+		{
+			std::string datapointstr = std::to_string(timers.drawtime[i]) + "\t" +
+			                           std::to_string(timers.encode_time[i]) + "\t" +
+			                           std::to_string(timers.copy_image_time[i]) + "\n";
+
+			file2 << datapointstr;
+		}
+
+		file2.close();
 	}
 
 	numframes++;
