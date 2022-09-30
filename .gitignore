@@ -247,3 +247,7 @@ data/roboto*.*
 .cache
 result
 result-*
+
+# data files
+*.csv
+*.tsv
