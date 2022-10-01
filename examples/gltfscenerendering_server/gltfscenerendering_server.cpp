@@ -1287,6 +1287,8 @@ void VulkanExample::prepare()
 
 	file.close();
 
+	exit(-1); // close so we can be done
+
 
 	VulkanExampleBase::prepare();
 	loadAssets();
