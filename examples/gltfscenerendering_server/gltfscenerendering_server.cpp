@@ -1446,7 +1446,8 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 
 	//if(ve->encoder.codec->id == AV_CODEC_ID_H264)
 	//	av_opt_set(ve->encoder.c->priv_data, "preset", "slow", 0);
-	av_opt_set(ve->encoder.c->priv_data, "crf", "0", AV_OPT_SEARCH_CHILDREN);
+	av_opt_set(ve->encoder.c->priv_data, "crf", "1", AV_OPT_SEARCH_CHILDREN);
+	av_opt_set(ve->encoder.c->priv_data, "qp", "1", AV_OPT_SEARCH_CHILDREN);
 
 	/* open it */
 	int ret = avcodec_open2(ve->encoder.c,ve-> encoder.codec, NULL);
