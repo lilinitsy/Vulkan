@@ -870,7 +870,10 @@ static void *begin_video_decoding(void* host_renderer)
 	gettimeofday(&recv_image_end_time, nullptr);
 
 	float recv_time_diff = vku::time_difference(recv_image_start_time, recv_image_end_time);
-	ve->timers.mbps_total_bandwidth.push_back(pktsize[0] / recv_time_diff);
+	float mbps = ((double) pktsize[0] / 1024 / 1024) / ((double) recv_time_diff * 1000);
+	ve->timers.recv_swapchain_time.push_back(recv_time_diff);
+	
+	ve->timers.mbps_total_bandwidth.push_back();
 
 	int in_line_size[1] = {2 * ve->decoder.c->width};
 	eof = !data_size;
@@ -912,7 +915,6 @@ static void *begin_video_decoding(void* host_renderer)
 	gettimeofday(&decode_end_time, nullptr);
 
 	ve->timers.decode_time.push_back(vku::time_difference(decode_start_time, decode_end_time));
-	ve->timers.recv_swapchain_time.push_back(vku::time_difference(recv_image_start_time, recv_image_end_time));
 
 
 	return nullptr;
