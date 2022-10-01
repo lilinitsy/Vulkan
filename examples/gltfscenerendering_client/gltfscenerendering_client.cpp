@@ -873,7 +873,7 @@ static void *begin_video_decoding(void* host_renderer)
 	float mbps = ((double) pktsize[0] / 1024 / 1024) / ((double) recv_time_diff * 1000);
 	ve->timers.recv_swapchain_time.push_back(recv_time_diff);
 	
-	ve->timers.mbps_total_bandwidth.push_back();
+	ve->timers.mbps_total_bandwidth.push_back(mbps);
 
 	int in_line_size[1] = {2 * ve->decoder.c->width};
 	eof = !data_size;
