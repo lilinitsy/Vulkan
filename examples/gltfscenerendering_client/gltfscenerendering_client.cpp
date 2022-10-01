@@ -866,13 +866,14 @@ static void *begin_video_decoding(void* host_renderer)
 
 	int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
 	uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
+	printf("Packet size: %d\n", pktsize[0]);
 
 	gettimeofday(&recv_image_end_time, nullptr);
 
 	float recv_time_diff = vku::time_difference(recv_image_start_time, recv_image_end_time);
-	float mbps = ((double) pktsize[0] / 1024 / 1024) / ((double) recv_time_diff * 1000);
+	float mbps = (pktsize[0] * (1000.0f / recv_time_diff)) * 8e-6 ; // First parenthesis converts to bytes per second, then divide by 125000 bytes to a megabit
+
 	ve->timers.recv_swapchain_time.push_back(recv_time_diff);
-	
 	ve->timers.mbps_total_bandwidth.push_back(mbps);
 
 	int in_line_size[1] = {2 * ve->decoder.c->width};
