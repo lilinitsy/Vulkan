@@ -14,25 +14,22 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
-#include "gltfscenerendering_client.h"
-#include "VulkanInitializers.hpp"
+
+#include "gltfscenerendering_server.h"
 #include "vk_utils.h"
+#include "vulkan/vulkan_beta.h"
 #include "vulkan/vulkan_core.h"
-#include <CL/opencl.hpp>
-
-#ifdef __ANDROID__
-	#include <android/log.h>
-#endif
-
-#include <cstdint>
-#include <libavutil/pixfmt.h>
+#include <libavcodec/avcodec.h>
+#include <libavcodec/codec.h>
+#include <libavutil/opt.h>
 #include <libswscale/swscale.h>
-#include <sys/socket.h>
+#include <stdexcept>
+#include <string>
+
 
 /*
         Vulkan glTF scene class
 */
-
 
 VulkanglTFScene::~VulkanglTFScene()
 {
@@ -198,7 +195,7 @@ void VulkanglTFScene::loadNode(
 					          .data[accessor.byteOffset + view.byteOffset]));
 					vertexCount = accessor.count;
 				}
-				// Get buffer data for vertex normals
+				// Get buffer data for vertex nfavrmals
 				if(glTFPrimitive.attributes.find("NORMAL") !=
 				   glTFPrimitive.attributes.end())
 				{
@@ -398,7 +395,7 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer,
 */
 
 VulkanExample::VulkanExample() :
-	VulkanExampleBase(false, CLIENTWIDTH, CLIENTHEIGHT)
+	VulkanExampleBase(ENABLE_VALIDATION, SERVERWIDTH, SERVERHEIGHT)
 {
 	title        = "glTF scene rendering";
 	camera.type  = Camera::CameraType::firstperson;
@@ -407,12 +404,25 @@ VulkanExample::VulkanExample() :
 	camera.setRotation(glm::vec3(-180.0f, -90.0f, 0.0f));
 	camera.movementSpeed = 4.0f;
 
+	printf("Scene width, height: %d\t%d\n", width, height);
+	printf("Fullscreen: %d\n", settings.fullscreen);
+
 	// Multiview setup
 	// Enable extension required for multiview
 	enabledDeviceExtensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
 
 	// Reading device properties and features for multiview requires VK_KHR_get_physical_device_properties2 to be enabled
 	enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+
+	// Video requirements
+	enabledDeviceExtensions.push_back(VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME);
+	enabledDeviceExtensions.push_back(VK_KHR_VIDEO_QUEUE_EXTENSION_NAME);
+
+	// Dependences for YCbCr_Conversion
+	//VK_KHR_maintenance1, VK_KHR_bind_memory2, VK_KHR_get_memory_requirements2
+	enabledDeviceExtensions.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+	enabledDeviceExtensions.push_back(VK_KHR_BIND_MEMORY_2_EXTENSION_NAME);
+	enabledDeviceExtensions.push_back(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
 
 	// Enable required extension features
 	physical_device_multiview_features = {
@@ -446,6 +456,9 @@ VulkanExample::~VulkanExample()
 	{
 		vkDestroyFence(device, multiview_pass.wait_fences[i], nullptr);
 	}
+
+
+
 }
 
 void VulkanExample::getEnabledFeatures()
@@ -466,15 +479,16 @@ void VulkanExample::setup_multiview()
 			.flags         = 0,
 			.imageType     = VK_IMAGE_TYPE_2D,
 			.format        = swapChain.colorFormat,
-			.extent        = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
+			.extent        = {width, height, 1},
 			.mipLevels     = 1,
 			.arrayLayers   = multiview_layers,
 			.samples       = VK_SAMPLE_COUNT_1_BIT,
 			.tiling        = VK_IMAGE_TILING_OPTIMAL,
-			.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+			.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 		};
 		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.colour.image));
+
 
 		VkMemoryRequirements memory_requirements;
 		vkGetImageMemoryRequirements(device, multiview_pass.colour.image, &memory_requirements);
@@ -506,6 +520,7 @@ void VulkanExample::setup_multiview()
 			.subresourceRange = colour_subresource,
 		};
 		VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multiview_pass.colour.view));
+
 
 		VkSamplerCreateInfo sampler_ci = {
 			.sType            = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -540,7 +555,7 @@ void VulkanExample::setup_multiview()
 			.flags       = 0,
 			.imageType   = VK_IMAGE_TYPE_2D,
 			.format      = depthFormat,
-			.extent      = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
+			.extent      = {width, height, 1},
 			.mipLevels   = 1,
 			.arrayLayers = multiview_layers,
 			.samples     = VK_SAMPLE_COUNT_1_BIT,
@@ -548,6 +563,7 @@ void VulkanExample::setup_multiview()
 			.usage       = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		};
 		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.depth.image));
+
 
 		VkMemoryRequirements memory_requirements;
 		vkGetImageMemoryRequirements(device, multiview_pass.depth.image, &memory_requirements);
@@ -557,6 +573,7 @@ void VulkanExample::setup_multiview()
 			.allocationSize  = memory_requirements.size,
 			.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
 		};
+
 
 		VkImageSubresourceRange depth_stencil_subresource = {
 			.aspectMask     = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
@@ -575,6 +592,7 @@ void VulkanExample::setup_multiview()
 			.format           = depthFormat,
 			.subresourceRange = depth_stencil_subresource,
 		};
+
 
 		VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &multiview_pass.depth.memory));
 		VK_CHECK_RESULT(vkBindImageMemory(device, multiview_pass.depth.image, multiview_pass.depth.memory, 0));
@@ -597,8 +615,6 @@ void VulkanExample::setup_multiview()
 			.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED,
 			.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		};
-
-
 
 		// Depth attachment
 		attachments[1] = {
@@ -668,7 +684,6 @@ void VulkanExample::setup_multiview()
 			.pCorrelationMasks    = &correlation_mask,
 		};
 
-
 		VkRenderPassCreateInfo renderpass_ci = {
 			.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 			.pNext           = &renderpass_multiview_ci,
@@ -683,6 +698,7 @@ void VulkanExample::setup_multiview()
 
 		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderpass_ci, nullptr, &multiview_pass.renderpass));
 	}
+
 
 	// Framebuffer creation
 	{
@@ -704,293 +720,20 @@ void VulkanExample::setup_multiview()
 }
 
 
-
-void VulkanExample::setup_video_decoder()
-{
-	// not sure if it's necessary to set end of buffer to 0
-	decoder.codec = avcodec_find_decoder(AV_CODEC_ID_H264);
-	if(!decoder.codec)
-	{
-		throw std::runtime_error("Decoder: Could not find H264 encoder");
-	}
-
-	decoder.parser = av_parser_init(decoder.codec->id);
-	if(!decoder.parser)
-	{
-		throw std::runtime_error("Decoder: Could not find parser");
-	}
-	
-	decoder.c = avcodec_alloc_context3(decoder.codec);
-	if(!decoder.c)
-	{
-		throw std::runtime_error("Decoder: Could not allocate video codec context");
-	}
-
-	// Open the codec
-	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
-	{
-		throw std::runtime_error("Decoder: Could not open codec");
-	}
-
-	decoder.packet = av_packet_alloc();
-	if(!decoder.packet)
-	{
-		throw std::runtime_error("Decoder: Could not alloc packet!");
-	}
-
-	decoder.frame = av_frame_alloc();
-	if(!decoder.frame)
-	{
-		throw std::runtime_error("Decoder: Could not allocate video frame");
-	}
-}
-
-static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, const char *filename)
-{
-    FILE *f;
-    int i;
- 
-    f = fopen(filename,"wb");
-    fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
-    for (i = 0; i < ysize; i++)
-	{
-        fwrite(buf + i * wrap, 1, xsize, f);
-	}
-	fclose(f);
-
-	printf("Wrap (frame->linesize[0]): %d\n", wrap);
-}
-
-
-static void decode(void *host_renderer)
-{
-	VulkanExample *ve = (VulkanExample*) host_renderer;
-	AVCodecContext *decode_context = ve->decoder.c;
-	AVFrame *frame = ve->decoder.frame;
-	AVPacket *packet = ve->decoder.packet;
-	std::string strfilename = "CLIENTpgmh264encoding" + std::to_string(ve->num_frames) + ".pgm";
-	const char *filename = strfilename.c_str();
-
-	char buf[1024];
-	int ret = avcodec_send_packet(decode_context, packet);
-	if(ret < 0)
-	{
-		throw std::runtime_error("Decode: Error sending a packet");
-	}
-	
-	while(ret >= 0)
-	{
-		ret = avcodec_receive_frame(decode_context, frame);
-		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-		{
-			//printf("AV Error on ret after receiving frame; not writing output\n");
-			return;
-		}
-		else if(ret < 0)
-		{
-			throw std::runtime_error("Error during decoding");
-		}
-	
-		fflush(stdout);
-	
-		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
-		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
-
-		#ifdef __ANDROID__
-		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "frame->width, frame->height: %d %d\n", frame->width, frame->height);
-		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "decoder num_bytes %lu\n", decoder_rgba_num_bytes);
-		#endif
-
-		/*uint8_t *ybuf = frame->data[0];
-		uint8_t *ubuf = frame->data[1];
-		uint8_t *vbuf = frame->data[2];
-		uint8_t out_rgba_H[num_bytes_for_images];
-		ve->rgb_to_rgba_opencl(ybuf, ubuf, vbuf, out_rgba_H, num_bytes_for_images);
-		*/
-
-		//unsigned char rgba_frame[decoder_rgba_num_bytes];
-		
-		unsigned char *ybuf = frame->data[0];
-		unsigned char *ubuf = frame->data[1];
-		unsigned char *vbuf = frame->data[2];
-		#ifdef __ANDROID__
-		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "GOT BEFORE FOR LOOP\n");
-		#endif
-
-
-		unsigned char *rgba_frame = new unsigned char[frame->width * frame->height * sizeof(uint32_t)];
-
-		for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
-		{
-			#ifdef __ANDROID__
-			//__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "i, j: %d %d\n", i, j);
-			#endif
-			rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
-			rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
-			rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
-			rgba_frame[i + 3] = 255;
-		}
-		#ifdef __ANDROID__
-		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "GOT OUT OF FOR LOOP\n");
-		#endif
-
-
-		
-		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
-		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
-		
-		#ifdef __ANDROID__
-		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "MEMCPY'D INTO GPU\n");
-		#endif
-
-		delete[] rgba_frame;
-		//pgm_save(frame->data[0], frame->linesize[0], frame->width, frame->height, filename);
-	}
-}
-
-
-static void *begin_video_decoding(void* host_renderer)
-{
-	VulkanExample *ve = (VulkanExample*) host_renderer;
-
-	timeval recv_image_start_time;
-	timeval recv_image_end_time;
-	gettimeofday(&recv_image_start_time, nullptr);
-
-
-	uint32_t pktsize[1];
-	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
-	int eof;
-	bool should_break = false;
-
-	int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
-	uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
-
-	gettimeofday(&recv_image_end_time, nullptr);
-
-	float recv_time_diff = vku::time_difference(recv_image_start_time, recv_image_end_time);
-	float mbps = (pktsize[0] * (1000.0f / recv_time_diff)) * 8e-6 ; // First parenthesis converts to bytes per second, then divide by 125000 bytes to a megabit
-
-	ve->timers.recv_swapchain_time.push_back(recv_time_diff);
-	ve->timers.mbps_total_bandwidth.push_back(mbps);
-
-	int in_line_size[1] = {2 * ve->decoder.c->width};
-	eof = !data_size;
-	uint8_t *data[1] = {ve->servbuf};
-	ve->decoder.frame->format = AV_PIX_FMT_RGBA;
-
-	timeval decode_start_time;
-	timeval decode_end_time;
-	gettimeofday(&decode_start_time, nullptr);
-
-	
-	while(data_size > 0 || eof)
-	{
-		//printf("%d In loop of begin_decoder\n", num_frames);
-		int ret = av_parser_parse2(ve->decoder.parser, ve->decoder.c, &ve->decoder.packet->data, &ve->decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
-		//printf("RET: %d\n", ret);
-		if(ret < 0)
-		{
-			throw std::runtime_error("Decoder: Error while parsing");
-		}
-
-		data[0] += ret;
-		data_size -= ret;
-
-		if(ve->decoder.packet->size)
-		{
-			//sws_scale(sws_ctx, ve->decoder.frame->data, ve->decoder.frame->linesize, 0, ve->decoder.c->height, data, in_line_size);
-			//sws_scale(sws_ctx, data, in_line_size, 0, ve->decoder.c->height, ve->decoder.frame->data, ve->decoder.frame->linesize);
-			decode((void*) ve);
-		}
-
-		else
-		{
-			should_break = true;
-			break;
-		}
-	}
-
-	gettimeofday(&decode_end_time, nullptr);
-
-	ve->timers.decode_time.push_back(vku::time_difference(decode_start_time, decode_end_time));
-
-
-	return nullptr;
-}
-
-
-void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t out_len)
-{
-	size_t in_len = out_len / 4;
-	cl::Buffer in_Y_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
-	cl::Buffer in_U_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
-	cl::Buffer in_V_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
-	cl::Buffer out_rgba_D(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
-
-	cl.queue.enqueueWriteBuffer(in_Y_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_Y_h);
-	cl.queue.enqueueWriteBuffer(in_U_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_U_h);
-	cl.queue.enqueueWriteBuffer(in_V_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_V_h);
-
-	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgb_to_rgba(cl::Kernel(cl.alpha_addition_program, "cl_rgb_to_rgba"));
-	cl::NDRange global(out_len);
-	cl_rgb_to_rgba(cl::EnqueueArgs(cl.queue, global), in_Y_d, in_U_d, in_V_d, out_rgba_D).wait();
-
-	cl.queue.enqueueReadBuffer(out_rgba_D, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_rgba_H);
-}
-
-
-void *send_camera_data(void *devicerenderer)
-{
-	VulkanExample *ve = (VulkanExample *) devicerenderer;
-
-	// Send an array with camera pos and rot back to server
-	float camera_data[6] = {
-		ve->camera.position.x,
-		ve->camera.position.y,
-		ve->camera.position.z,
-		ve->camera.rotation.x,
-		ve->camera.rotation.y,
-		ve->camera.rotation.z,
-	};
-
-	timeval send_cameradata_time_start;
-	timeval send_cameradata_time_end;
-	gettimeofday(&send_cameradata_time_start, nullptr);
-
-	send(ve->client.socket_fd[1], camera_data, 6 * sizeof(float), 0);
-	gettimeofday(&send_cameradata_time_end, nullptr);
-	ve->timers.send_cameradata_time.push_back(vku::time_difference(send_cameradata_time_start, send_cameradata_time_end));
-
-	return nullptr;
-}
-
 void VulkanExample::buildCommandBuffers()
 {
-	int32_t halfwidth = width / 2;
-
-	int32_t leftmost_boundary       = 0;
-	int32_t left_mid_boundary       = CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
-	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 2;
-	int32_t leftmost_right_boundary = width / 2;
-
-	int32_t top_boundary    = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
-	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
-
-	int32_t right_leftmost_boundary  = width / 2;
-	int32_t right_left_mid_boundary  = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
-	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
-	int32_t right_rightmost_boundary = width;
-
+	int32_t left_mid_boundary = CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
+	int32_t top_boundary      = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary   = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
 
 	// View display rendering
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 		VkClearValue clearValues[2];
-		clearValues[0].color        = {0.0f, 0.0f, 0.0f, 1.0f};
+		clearValues[0].color        = {0.0f, 0.0f, 0.0f, 1.0f}; //defaultClearColor;
 		clearValues[1].depthStencil = {1.0f, 0};
+
 
 		VkRenderPassBeginInfo renderPassBeginInfo    = vks::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass               = renderPass;
@@ -1008,62 +751,28 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			VkRect2D scissor_left_left   = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
-			VkRect2D scissor_left_top    = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
-			VkRect2D scissor_left_right  = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
-			VkRect2D scissor_left_bottom = vks::initializers::rect2D(left_right_mid_boundary, height - bottom_boundary, 0, height - top_boundary);
-
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
+			VkRect2D scissor    = vks::initializers::rect2D(FOVEAWIDTH, FOVEAHEIGHT, left_mid_boundary, top_boundary);
+
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			// Bind descriptor set
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
-
 			// Left eye
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
+			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
 
 			// Right eye
-			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
-
-
 			viewport.x = (float) width / 2.0f;
+			scissor.offset.x += width / 2.0f;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
-
-			scissor_left_right.offset.x += width / 2.0f;
-			scissor_left_left.offset.x += width / 2.0f;
-			scissor_left_bottom.offset.x += width / 2.0f;
-			scissor_left_top.offset.x += width / 2.0f;
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
 			//drawUI(drawCmdBuffers[i]);
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
@@ -1081,20 +790,20 @@ void VulkanExample::buildCommandBuffers()
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 		VkClearValue clearValues[2];
-		clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
+		clearValues[0].color        = {0.0f, 0.0f, 0.0f, 1.0f};
 		clearValues[1].depthStencil = {1.0f, 0};
 
 		VkRenderPassBeginInfo renderPassBeginInfo    = vks::initializers::renderPassBeginInfo();
 		renderPassBeginInfo.renderPass               = multiview_pass.renderpass;
 		renderPassBeginInfo.renderArea.offset.x      = 0;
 		renderPassBeginInfo.renderArea.offset.y      = 0;
-		renderPassBeginInfo.renderArea.extent.width  = DOWN_SWIDTH;
-		renderPassBeginInfo.renderArea.extent.height = DOWN_SHEIGHT;
+		renderPassBeginInfo.renderArea.extent.width  = width;
+		renderPassBeginInfo.renderArea.extent.height = height;
 		renderPassBeginInfo.clearValueCount          = 2;
 		renderPassBeginInfo.pClearValues             = clearValues;
 
-		const VkViewport viewport = vks::initializers::viewport((float) DOWN_SWIDTH, (float) DOWN_SHEIGHT, 0.0f, 1.0f);
-		const VkRect2D scissor    = vks::initializers::rect2D(DOWN_SWIDTH, DOWN_SHEIGHT, 0, 0);
+		const VkViewport viewport = vks::initializers::viewport((float) width, (float) height, 0.0f, 1.0f);
+		const VkRect2D scissor    = vks::initializers::rect2D(width, height, 0, 0);
 
 		for(int32_t i = 0; i < multiview_pass.command_buffers.size(); ++i)
 		{
@@ -1115,48 +824,6 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
 		}
 	}
-
-
-	//write_server_image_to_file(std::to_string(currentBuffer));
-
-	// Copy server image into the current swapchain image
-}
-
-void VulkanExample::write_server_image_to_file(std::string name)
-{
-
-
-
-	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
-	std::ofstream file(filename, std::ios::out | std::ios::binary);
-	file << "P6\n"
-		 << FOVEAWIDTH << "\n"
-		 << FOVEAHEIGHT << "\n"
-		 << 255 << "\n";
-	/*for(int i = 0; i < FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t); i += 3)
-	{
-		file.write((char *) server_image.data, 3);
-		server_image.data += 3;
-	}*/
-
-	/*
-	while(server_image.data != nullptr)
-	{
-		file.write((char*) server_image.data, 1);
-		server_image.data++;
-	}
-
-	/*for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
-	{
-		uint32_t *row = (uint32_t *) server_image.data;
-		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
-		{
-			file.write((char *) row, 3);
-			row++;
-		}
-	}*/
-
-	//file.close();
 }
 
 void VulkanExample::loadglTFFile(std::string filename)
@@ -1280,9 +947,10 @@ void VulkanExample::loadAssets()
 void VulkanExample::setupDescriptors()
 {
 	/*
-          This sample uses separate descriptor sets (and layouts) for the
-     matrices and materials (textures)
+		This sample uses separate descriptor sets (and layouts) for the
+     	matrices and materials (textures)
   	*/
+  
 
 	// ========================================================================
 	//							SETUP FOR POOL
@@ -1300,6 +968,7 @@ void VulkanExample::setupDescriptors()
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount);
 	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
+
 	// ========================================================================
 	//							SETUP FOR MATRIX SETS
 	// ========================================================================
@@ -1311,7 +980,6 @@ void VulkanExample::setupDescriptors()
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCI = vks::initializers::descriptorSetLayoutCreateInfo(setLayoutBindings.data(), static_cast<uint32_t>(setLayoutBindings.size()));
 	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorSetLayoutCI, nullptr, &descriptor_set_layouts.matrices));
-
 
 
 	// ========================================================================
@@ -1374,8 +1042,6 @@ void VulkanExample::setupDescriptors()
 	}
 
 
-	// Viewdisplay pipeline stuff
-
 	// ========================================================================
 	//							VIEWDISP SET LAYOUT
 	// ========================================================================
@@ -1387,6 +1053,7 @@ void VulkanExample::setupDescriptors()
 	VkDescriptorSetLayoutCreateInfo viewdisp_desc_layout = vks::initializers::descriptorSetLayoutCreateInfo(viewdisp_layout_bindings);
 	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &viewdisp_desc_layout, nullptr, &descriptor_set_layouts.viewdisp));
 
+
 	// ========================================================================
 	//							VIEWDISP PIPELINE LAYOUT
 	// ========================================================================
@@ -1394,7 +1061,6 @@ void VulkanExample::setupDescriptors()
 	// pipeline layout
 	VkPipelineLayoutCreateInfo viewdisp_pl_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&descriptor_set_layouts.viewdisp, 1);
 	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &pipeline_layouts.viewdisp));
-
 
 	// Setup viewdisp descriptor set
 	VkDescriptorSetAllocateInfo set_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.viewdisp, 1);
@@ -1453,6 +1119,7 @@ void VulkanExample::preparePipelines()
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
 
+
 	// ========================================================================
 	//							MULTIVIEW GRAPHICS PIPELINE SETUP
 	// ========================================================================
@@ -1482,8 +1149,8 @@ void VulkanExample::preparePipelines()
 	pipelineCI.pStages                      = shaderStages.data();
 
 
-	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
 
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
@@ -1511,12 +1178,6 @@ void VulkanExample::preparePipelines()
 
 		// For double sided materials, culling will be disabled
 		rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
-
-		/*
-		Possile issues: viewdir with inNormals either with viewdir or with normals flipped
-
-		*/
-
 
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
 	}
@@ -1548,8 +1209,8 @@ void VulkanExample::preparePipelines()
 
 	for(uint32_t i = 0; i < 2; i++)
 	{
-		viewdisp_shader_stages[0]                     = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		viewdisp_shader_stages[1]                     = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		viewdisp_shader_stages[0]                     = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+		viewdisp_shader_stages[1]                     = loadShader(getShadersPath() + "gltfscenerendering/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 		viewdisp_shader_stages[1].pSpecializationInfo = &viewdisp_specialization_info;
 		multiview_array_layer                         = (float) (1 - i);
 
@@ -1560,16 +1221,6 @@ void VulkanExample::preparePipelines()
 		pipelineCI.renderPass                                  = renderPass;
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewdisp_pipelines[i]));
 	}
-}
-
-void VulkanExample::create_server_image_buffer()
-{
-	VkDeviceSize image_buffer_size = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&server_image.buffer, image_buffer_size));
-
 }
 
 void VulkanExample::prepareUniformBuffers()
@@ -1637,18 +1288,408 @@ void VulkanExample::updateUniformBuffers()
 }
 
 
-void transition_image_layout(VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask)
+void VulkanExample::prepare()
 {
-	VkImageSubresourceRange subresource_range = vku::imageSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
-	VkImageMemoryBarrier barrier              = vku::imageMemoryBarrier(src_access_mask, dst_access_mask, old_layout, new_layout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image, subresource_range);
+	VulkanExampleBase::prepare();
+	//setup_opencl();
+	loadAssets();
+	setup_multiview();
+	prepareUniformBuffers();
+	setupDescriptors();
+	preparePipelines();
+	foveal_regions = create_image_packet();
+	server         = Server();
+	server.connect_to_client(PORT);
+	buildCommandBuffers();
 
-	// the pipeline stage to submit, pipeline stage to wait on
-	vkCmdPipelineBarrier(command_buffer, src_stage_mask, dst_stage_mask, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+	multiview_pass.wait_fences.resize(multiview_pass.command_buffers.size());
+	for(uint32_t i = 0; i < multiview_pass.wait_fences.size(); i++)
+	{
+		VK_CHECK_RESULT(vkCreateFence(device, &multiview_fence_ci, nullptr, &multiview_pass.wait_fences[i]));
+	}
+
+	setup_video_encoder();
+	setup_video_decoder();
+
+
+	prepared = true;
 }
 
 
+// This will only encode one frame at a time
+static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile)
+{
+	//int ret;
 
-/*
+	int ret = avcodec_send_frame(encode_context, frame);
+	if(ret < 0)
+	{
+		char errbuf[64];
+		int err = av_strerror(ret, errbuf, 64);
+
+		printf("Error: %s\n", &errbuf[0]);
+		//av_make_error_string(errbuf, 64, ret);
+
+		printf("Ret: %d\n", ret);
+		throw std::runtime_error("Error sending frame for encoding");
+	}
+
+	ret = avcodec_receive_packet(encode_context, packet);
+	if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+	{
+		// dbg section
+		// Send garbage data twice to advance shit
+		uint32_t garbage = 4;
+		int sendret = send(ve->server.client_fd[0], &garbage, sizeof(uint32_t), 0);
+		send(ve->server.client_fd[0], &garbage, sizeof(garbage), 0);			
+	}
+
+	else if(ret < 0)
+	{
+		throw std::runtime_error("Could not receive packet");
+	}
+
+	else
+	{
+		send(ve->server.client_fd[0], &packet->size, sizeof(packet->size), 0);
+		ssize_t sendret = send(ve->server.client_fd[0], &packet->data[0], packet->size, 0);
+		ve->should_wait_for_camera_data = true;
+	}
+}
+
+
+void VulkanExample::setup_video_encoder()
+{ 
+	const char *filename, *codec_name;
+	int ret;
+
+	filename   = "file.mp4";
+	codec_name = "h264_nvenc";
+
+	/* find the mpeg1video encoder */
+	encoder.codec = avcodec_find_encoder_by_name(codec_name);
+	if(!encoder.codec)
+	{
+		fprintf(stderr, "Codec '%s' not found\n", codec_name);
+		exit(1);
+	}
+
+	encoder.c = avcodec_alloc_context3(encoder.codec);
+	if(!encoder.c)
+	{
+		fprintf(stderr, "Could not allocate video codec context\n");
+		exit(1);
+	}
+
+	encoder.packet = av_packet_alloc();
+	encoder.frame = av_frame_alloc();
+}
+
+
+struct EncodingData
+{
+	VulkanExample *ve;
+	uint8_t *y; // not going to b e used while testing ffmpeg colour space conversion
+	uint8_t *u; // not going to b e used while testing ffmpeg colour space conversion
+	uint8_t *v; // not going to b e used while testing ffmpeg colour space conversion
+};
+
+
+static void *receive_camera_data(void *host_renderer)
+{
+	VulkanExample *ve = (VulkanExample*) host_renderer;
+
+	float camera_buf[6];
+
+	int client_read = recv(ve->server.client_fd[1], camera_buf, 6 * sizeof(float), MSG_WAITALL);
+	ve->camera.position = glm::vec3(camera_buf[0], camera_buf[1], camera_buf[2]);
+	ve->camera.rotation = glm::vec3(camera_buf[3], camera_buf[4], camera_buf[5]);
+
+	return nullptr;
+}
+
+
+static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
+{
+	timeval encode_start_time;
+	timeval encode_end_time;
+	gettimeofday(&encode_start_time, nullptr);
+	VulkanExample *ve = (VulkanExample*) void_encoding_data;
+
+	int i;
+	uint8_t endcode[] = {0, 0, 1, 0xb7};
+	FILE *f;
+	std::string filename = "h264encoding" + std::to_string(ve->numframes) + ".mp4";
+
+
+	//ve->encoder.packet = av_packet_alloc();
+	if(!ve->encoder.packet)
+		exit(1);
+
+	/* put sample parameters */
+	//c->bit_rate = 400000;
+	/* resolution must be a multiple of two */
+	ve->encoder.c->width  = 2 * FOVEAWIDTH;
+	ve->encoder.c->height = FOVEAHEIGHT;
+	/* frames per second */
+	ve->encoder.c->time_base = (AVRational){1, 60};
+	// c->framerate = (AVRational){25, 1};
+
+	/* emit one intra frame every ten frames
+     * check frame pict_type before passing frame
+     * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
+     * then gop_size is ignored and the output of encoder
+     * will always be I frame irrespective to gop_size
+     */
+	// c->gop_size		= 10;
+	// c->max_b_frames = 1;
+	ve->encoder.c->pix_fmt		= AV_PIX_FMT_YUV444P;
+	//ve->encoder.
+
+	//if(ve->encoder.codec->id == AV_CODEC_ID_H264)
+	//	av_opt_set(ve->encoder.c->priv_data, "preset", "slow", 0);
+	av_opt_set(ve->encoder.c->priv_data, "crf", "1", AV_OPT_SEARCH_CHILDREN);
+	av_opt_set(ve->encoder.c->priv_data, "qp", "1", AV_OPT_SEARCH_CHILDREN);
+
+	/* open it */
+	int ret = avcodec_open2(ve->encoder.c,ve-> encoder.codec, NULL);
+	if(ret < 0)
+	{
+		throw std::runtime_error("Could not open codec!");
+	}
+
+	//ve->encoder.frame = av_frame_alloc();
+	ve->encoder.frame->format = AV_PIX_FMT_YUV444P;
+	ve->encoder.frame->width = 2 * FOVEAWIDTH;
+	ve->encoder.frame->height = FOVEAHEIGHT;
+	ve->encoder.frame->pict_type = AV_PICTURE_TYPE_I;
+	av_frame_get_buffer(ve->encoder.frame, 1);
+
+
+	/* Make sure the frame data is writable.
+		On the first round, the frame is fresh from av_frame_get_buffer()
+		and therefore we know it is writable.
+		But on the next rounds, encode() will have called
+		avcodec_send_frame(), and the codec may have kept a reference to
+		the frame in its internal structures, that makes the frame
+		unwritable.
+		av_frame_make_writable() checks that and allocates a new buffer
+		for the frame only if necessary.
+		*/
+	ret = av_frame_get_buffer(ve->encoder.frame, 0);
+
+	// Get the context or whatever
+	SwsContext *sws_ctx = sws_getContext(ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_RGBA, ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
+
+	fflush(stdout);
+
+	ret = av_frame_make_writable(ve->encoder.frame);
+	if(ret < 0)
+	{
+		throw std::runtime_error("Could not make av frame writeable");
+	}
+
+	vkMapMemory(ve->device, ve->foveal_regions.buffer.memory, 0, 2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->foveal_regions.data);
+
+	int in_line_size[1] = {2 * ve->encoder.c->width};
+	uint8_t *in_data[1] = {(uint8_t*) ve->foveal_regions.data};
+	ve->encoder.frame->pts = 0;
+	sws_scale(sws_ctx, in_data, in_line_size, 0, ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
+
+	encode(ve, ve->encoder.c, ve->encoder.frame, ve->encoder.packet, f);
+	
+	vkUnmapMemory(ve->device, ve->foveal_regions.buffer.memory);
+
+	gettimeofday(&encode_end_time, nullptr);
+	float encode_time_diff = vku::time_difference(encode_start_time, encode_end_time);
+	ve->timers.encode_time.push_back(encode_time_diff);
+
+	//av_frame_free(&ve->encoder.frame);
+
+	return nullptr;
+}
+
+
+void VulkanExample::setup_video_decoder()
+{
+	// not sure if it's necessary to set end of buffer to 0
+	decoder.codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+	if(!decoder.codec)
+	{
+		throw std::runtime_error("Decoder: Could not find H264 encoder");
+	}
+
+	decoder.parser = av_parser_init(decoder.codec->id);
+	if(!decoder.parser)
+	{
+		throw std::runtime_error("Decoder: Could not find parser");
+	}
+	
+}
+
+static void pgm_save(unsigned char *buf, int wrap, int xsize, int ysize, char *filename)
+{
+    FILE *f;
+    int i;
+ 
+    f = fopen(filename,"wb");
+    fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
+    for (i = 0; i < ysize; i++)
+	{
+        fwrite(buf + i * wrap, 1, xsize, f);
+	}
+	fclose(f);
+}
+
+
+void VulkanExample::decode(AVCodecContext *decode_context, AVFrame *frame, AVPacket *packet, const char *filename)
+{
+	printf("%d Decode called\n", numframes);
+	char buf[1024];
+	int ret = avcodec_send_packet(decode_context, packet);
+	if(ret < 0)
+	{
+		throw std::runtime_error("Decode: Error sending a packet");
+	}
+	
+	while(ret >= 0)
+	{
+		printf("%d In loop of decode\n", numframes);
+		ret = avcodec_receive_frame(decode_context, frame);
+		printf("%d AV Frame Received\n", numframes);
+		if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+		{
+			printf("AV Error on ret after receiving frame; not writing output\n");
+			return;
+		}
+		else if(ret < 0)
+		{
+			throw std::runtime_error("Error during decoding");
+		}
+	
+		printf("saving frame %3d\n", decode_context->frame_number);
+		fflush(stdout);
+	
+		/* the picture is allocated by the decoder. no need to
+			free it */
+		snprintf(buf, sizeof(buf), "%s-%d", filename, decode_context->frame_number);
+		pgm_save(frame->data[0], frame->linesize[0],
+					frame->width, frame->height, buf);
+	}
+}
+
+
+void VulkanExample::begin_video_decoding()
+{
+	decoder.c = avcodec_alloc_context3(decoder.codec);
+	if(!decoder.c)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video codec context");
+	}
+
+	// Open the codec
+	if(avcodec_open2(decoder.c, decoder.codec, nullptr) < 0)
+	{
+		throw std::runtime_error("Decoder: Could not open codec");
+	}
+
+	decoder.packet = av_packet_alloc();
+	if(!decoder.packet)
+	{
+		throw std::runtime_error("Decoder: Could not alloc packet!");
+	}
+	
+
+	int INBUF_SIZE = FOVEAWIDTH * FOVEAHEIGHT * 3;
+	uint8_t *data;
+	uint8_t inbuf[INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
+	std::string filename = "h264encoding" + std::to_string(numframes) + ".mp4";
+	std::string outfilename = "pgmh264encoding" + std::to_string(numframes) + ".pgm";
+	FILE *f = fopen(filename.c_str(), "rb");
+	if(!f)
+	{
+		throw std::runtime_error("Decoder: Could not open file");
+	}
+
+	decoder.frame = av_frame_alloc();
+	if(!decoder.frame)
+	{
+		throw std::runtime_error("Decoder: Could not allocate video frame");
+	}
+
+	int eof;
+	do
+	{
+		int data_size = fread(inbuf, 1, INBUF_SIZE, f);
+		printf("DATA SIZE: %d\n", data_size);
+		if(ferror(f))
+		{
+			printf("Decoder (not crashing yet): ferror on reading file data\n");
+			break;
+		}
+
+		eof = !data_size;
+		data = inbuf;
+		while(data_size > 0 || eof)
+		{
+			printf("%d In loop of begin_decoder\n", numframes);
+			int ret = av_parser_parse2(decoder.parser, decoder.c, &decoder.packet->data, &decoder.packet->size, data, data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+			printf("RET: %d\n", ret);
+			if(ret < 0)
+			{
+				throw std::runtime_error("Decoder: Error while parsing");
+			}
+
+			data += ret;
+			data_size -= ret;
+
+			if(decoder.packet->size)
+			{
+				decode(decoder.c, decoder.frame, decoder.packet, outfilename.c_str());
+			}
+
+			else if(eof)
+			{
+				break;
+			}
+		}
+	} while (!eof);
+
+	// flush decoder
+
+	decode(decoder.c, decoder.frame, nullptr, outfilename.c_str());
+
+	fclose(f);
+
+
+	avcodec_free_context(&decoder.c);
+	av_frame_free(&decoder.frame);
+	av_packet_free(&decoder.packet);
+}
+
+
+void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t in_len)
+{
+	size_t out_len = in_len / 4;	
+	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
+	cl::Buffer out_Y_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
+	cl::Buffer out_U_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
+	cl::Buffer out_V_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(uint8_t) * out_len);
+
+	cl.queue.enqueueWriteBuffer(in_d, CL_TRUE, 0, sizeof(uint8_t) * in_len, in_h);
+
+	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_removal_program, "cl_rgba_to_rgb"));
+	cl::NDRange global(in_len);
+	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_Y_d, out_U_d, out_V_d).wait();
+
+	cl.queue.enqueueReadBuffer(out_Y_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_Y_h);
+	cl.queue.enqueueReadBuffer(out_U_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_U_h);
+	cl.queue.enqueueReadBuffer(out_V_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_V_h);
+
+}
+
+
 void VulkanExample::setup_opencl()
 {
 	std::vector<cl::Platform> all_platforms;
@@ -1672,89 +1713,118 @@ void VulkanExample::setup_opencl()
 	cl::CommandQueue cmdqueue(cl.context, cl.device);
 	cl.queue = cmdqueue;
 
-	/*
-	rgba_frame[i] = (unsigned char) (ybuf[j] + 1.40200 * (vbuf[j] - 0x80));
-	rgba_frame[i + 1] = (unsigned char) (ybuf[j] - 0.34414 * (ubuf[j] - 0x80) - 0.71414 * (vbuf[j] - 0x80));
-	rgba_frame[i + 2] = (unsigned char) (ybuf[j] + 1.77200 * (ubuf[j] - 0x80));
-
-	*/
-/*
 	// Load kernel
-	std::string rgb_to_rgba_kernel_str_code = 
-		"kernel void cl_rgb_to_rgba(global const unsigned char *in_Y, global const unsigned char *in_U, global const unsigned char *in_V, global unsigned char *out)"
+	std::string rgba_to_rgb_kernel_str_code = 
+		"kernel void cl_rgba_to_rgb(global const char *in, global char *out_Y, global char *out_U, global char *out_V)"
 		"{"
-		"	int idx = get_global_id(0);"
-		"	int in_idx = idx / 4;"
+		"	int in_idx = get_global_id(0);"
 
-		"	if(idx % 4 == 0)"
-		"	{"	
-		"		out[idx] = in_Y[in_idx] + 1.40200 * (in_V[in_idx] - 128);"
+		"	if(in_idx % 4 == 0)"
+		"	{"
+		"		out_Y[in_idx / 4] = in[in_idx];"
 		"	}"
 
-		"	else if(idx % 4 == 1)"
+		"	else if(in_idx % 4 == 1)"
 		"	{"
-		"		out[idx] = in_Y[in_idx] - 0.34414 * (in_U[in_idx] - 128) - 0.71414 * (in_V[in_idx] - 128);"
+		"		out_U[in_idx / 4] = in[in_idx];"
 		"	}"
 
-		"	else if(idx % 4 == 2)"
+		"	else if(in_idx % 4 == 2)"
 		"	{"
-		"		out[idx] = in_Y[in_idx] + 1.77200 * (in_U[in_idx] - 128);"
-		"	}"
-
-		"	else if(idx % 4 == 3)"
-		"	{"
-		"		out[idx] = 255;"
+		"		out_V[in_idx / 4] = in[in_idx];"
 		"	}"
 
 		"	barrier(CLK_GLOBAL_MEM_FENCE);"
 		"}";
 
-	cl.sources.push_back({rgb_to_rgba_kernel_str_code.c_str(), rgb_to_rgba_kernel_str_code.length()});
+	cl.sources.push_back({rgba_to_rgb_kernel_str_code.c_str(), rgba_to_rgb_kernel_str_code.length()});
 	cl::Program program(cl.context, cl.sources);
-	cl.alpha_addition_program = program;
+	cl.alpha_removal_program = program;
 
-	if(cl.alpha_addition_program.build({cl.device}) != CL_SUCCESS)
+	if(cl.alpha_removal_program.build({cl.device}) != CL_SUCCESS)
 	{
-		std::cout << "Error building: " << cl.alpha_addition_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
+		std::cout << "Error building: " << cl.alpha_removal_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(cl.device) << "\n";
 		exit(-1);
 	}
-}*/
 
 
-void VulkanExample::prepare()
-{
-	VulkanExampleBase::prepare();
-	//rgba_frame = new uint8_t[FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t)];
-	//setup_opencl();
-	setup_video_decoder();
-	loadAssets();
-	setup_multiview();
-	prepareUniformBuffers();
-	setupDescriptors();
-	preparePipelines();
-	create_server_image_buffer();
-	VulkanExample::buildCommandBuffers();
+	// Tests for kernel
+	char *in_h = new char[16];
+	char *out_Y_h = new char[4];
+	char *out_U_h = new char[4];
+	char *out_V_h = new char[4];
 
-	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-	multiview_pass.wait_fences.resize(multiview_pass.command_buffers.size());
-	for(uint32_t i = 0; i < multiview_pass.wait_fences.size(); i++)
+	for(uint32_t i = 0; i < 16; i++)
 	{
-		VK_CHECK_RESULT(vkCreateFence(device, &multiview_fence_ci, nullptr, &multiview_pass.wait_fences[i]));
+		if(i % 4 == 0)
+		{
+			in_h[i] = (char) 1;
+		}
+
+		else if(i % 4 == 1)
+		{
+			in_h[i] = (char) 2;
+		}
+		
+		else if(i % 4 == 2)
+		{
+			in_h[i] = (char) 3;
+		}
+
+		else
+		{
+			in_h[i] = (char) 4;
+		}
+	}
+	
+
+	for(uint32_t i = 0; i < 16; i++)
+	{
+		printf("%d in_h: %d\n", i, in_h[i]);
 	}
 
-	client.connect_to_server(PORT);
+	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(char) * 16);
+	cl::Buffer out_Y_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
+	cl::Buffer out_U_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
+	cl::Buffer out_V_d(cl.context, CL_MEM_WRITE_ONLY, sizeof(char) * 4);
 
-	prepared = true;
+	cl.queue.enqueueWriteBuffer(in_d, CL_TRUE, 0, sizeof(char) * 16, in_h);
+
+	cl::compatibility::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer, cl::Buffer> cl_rgba_to_rgb(cl::Kernel(cl.alpha_removal_program, "cl_rgba_to_rgb"));
+	cl::NDRange global(16);
+	cl_rgba_to_rgb(cl::EnqueueArgs(cl.queue, global), in_d, out_Y_d, out_U_d, out_V_d).wait();
+
+	cl.queue.enqueueReadBuffer(out_Y_d, CL_TRUE, 0, sizeof(char) * 4, out_Y_h);
+	cl.queue.enqueueReadBuffer(out_U_d, CL_TRUE, 0, sizeof(char) * 4, out_U_h);
+	cl.queue.enqueueReadBuffer(out_V_d, CL_TRUE, 0, sizeof(char) * 4, out_V_h);
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_Y_h: %d\n", i, out_Y_h[i]);
+	}
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_U_h: %d\n", i, out_U_h[i]);
+	}
+
+	for(uint32_t i = 0; i < 4; i++)
+	{
+		printf("%d out_V_h: %d\n", i, out_V_h[i]);
+	}
 }
+
 
 void VulkanExample::draw()
 {
+	printf("\n");
+	printf("Framenum: %d\n", numframes);
+	timeval drawstarttime;
+	timeval drawendtime;
+	gettimeofday(&drawstarttime, nullptr);
+
 	VulkanExampleBase::prepareFrame();
-	int send_thread_create = pthread_create(&vk_pthread.send_thread, nullptr, send_camera_data, this);
-
-	// Create timers for individual threads and receive the swapchain images
-	int receive_image_thread = pthread_create(&vk_pthread.receive_image, nullptr, begin_video_decoding, this);
-
+	should_wait_for_camera_data = false;
 
 	// Multiview offscreen render
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
@@ -1765,6 +1835,7 @@ void VulkanExample::draw()
 	submitInfo.pCommandBuffers    = &multiview_pass.command_buffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, multiview_pass.wait_fences[currentBuffer]));
 
+
 	// View display
 	VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX));
 	VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));
@@ -1774,24 +1845,132 @@ void VulkanExample::draw()
 	submitInfo.pCommandBuffers    = &drawCmdBuffers[currentBuffer];
 	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
 
-	pthread_join(vk_pthread.receive_image, nullptr);
+	VkSwapchainKHR swapchains_to_present_to[] = {swapChain.swapChain};
+	VkPresentInfoKHR present_info             = {
+        .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext              = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &semaphores.renderComplete,
+        .swapchainCount     = 1,
+        .pSwapchains        = swapchains_to_present_to,
+        .pImageIndices      = &currentBuffer,
+    };
 
 
-	timeval copy_swapchain_start_time;
-	timeval copy_swapchain_end_time;
-	gettimeofday(&copy_swapchain_start_time, nullptr);
+	VulkanExampleBase::submitFrame();
 
-	VkCommandBuffer copy_cmdbuf = vku::begin_command_buffer(device, cmdPool);
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-	                             swapChain.images[currentBuffer],
-	                             VK_ACCESS_MEMORY_READ_BIT,            // src access_mask
-	                             VK_ACCESS_TRANSFER_WRITE_BIT,         // dst access_mask
-	                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,      // current layout
-	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, // new layout to transfer to (destination)
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT,       // dst pipeline mask
-	                             VK_PIPELINE_STAGE_TRANSFER_BIT);      // src pipeline mask
+	// Determine area to copy
+	int32_t midpoint_of_eye_x = SERVERWIDTH / 4;
+	int32_t midpoint_of_eye_y = SERVERHEIGHT / 2;
 
-	// Image subresource to be used in the vkbufferimagecopy
+	// Get the top left point for left eye
+	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+
+	// Get the top left point for right eye -- y is same
+	int32_t topleft_righteye_x = (SERVERWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+
+	VkOffset3D lefteye_copy_offset = {
+		.x = topleft_lefteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+	VkOffset3D righteye_copy_offset = {
+		.x = topleft_righteye_x,
+		.y = topleft_eyepoint_y,
+		.z = 0,
+	};
+
+	gettimeofday(&drawendtime, nullptr);
+	timers.drawtime.push_back(vku::time_difference(drawstarttime, drawendtime));
+
+	timeval copystarttime;
+	timeval copyendtime;
+	gettimeofday(&copystarttime, nullptr);
+
+	// Now copy the image packet back
+	foveal_regions = copy_image_to_packet(swapChain.images[currentBuffer], foveal_regions, lefteye_copy_offset, righteye_copy_offset);
+
+	gettimeofday(&copyendtime, nullptr);
+	timers.copy_image_time.push_back(vku::time_difference(copystarttime, copyendtime));
+
+	size_t input_framesize_bytes  = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
+	uint8_t left_out_Y_h[input_framesize_bytes / 4];
+	uint8_t left_out_U_h[input_framesize_bytes / 4];
+	uint8_t left_out_V_h[input_framesize_bytes / 4];
+	//rgba_to_rgb_opencl((uint8_t*) lefteye_fovea.data, left_out_Y_h, left_out_U_h, left_out_V_h, input_framesize_bytes);
+
+	int receive_camera_thread = pthread_create(&vk_pthread.recv_camera, nullptr, receive_camera_data, this);
+	int left_image_send_encode = pthread_create(&vk_pthread.send_image, nullptr, begin_video_encoding, this);
+	pthread_join(vk_pthread.send_image, nullptr);
+	pthread_join(vk_pthread.recv_camera, nullptr);
+
+
+	if(timers.drawtime.size() == 1024)
+	{
+		int len = 1024 * sizeof(float) * 6;
+		float databuf[len];
+		int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
+
+		std::string filename = "CLIENTDATA.tsv";
+		std::ofstream file(filename, std::ios::out | std::ios::binary);
+		file << "recvswapchain\tsendcamera\tdecode\tcopyintoswap\tnetframetime\tmbps\n";
+
+		for(uint32_t i = 1; i < 1000; i++)
+		{
+			std::string datapointstr = std::to_string(databuf[i]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 1]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 2]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 3]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 4]) + "\t" +
+			                           std::to_string(databuf[i + 1024 * 5]) + "\n";
+			file << datapointstr;
+		}
+
+		file.close();
+
+		// Write server data
+		filename = "SERVERDATA.tsv";
+		std::ofstream file2(filename, std::ios::out | std::ios::binary);
+		file2 << "drawtime\tencode\tcopytime\n";
+
+		for(uint32_t i = 1; i < 1000; i++)
+		{
+			std::string datapointstr = std::to_string(timers.drawtime[i]) + "\t" +
+			                           std::to_string(timers.encode_time[i]) + "\t" +
+			                           std::to_string(timers.copy_image_time[i]) + "\n";
+
+			file2 << datapointstr;
+		}
+
+		file2.close();
+	}
+
+	numframes++;
+}
+
+
+ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D left_offset, VkOffset3D right_offset)
+{
+	ImagePacket dst                = image_packet;
+	VkCommandBuffer copy_cmdbuffer = vku::begin_command_buffer(device, cmdPool);
+
+	//printf("Command buffer begun\n");
+
+	// Transition swapchain image from present to source transfer layout
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
+	                             src_image,
+	                             VK_ACCESS_MEMORY_READ_BIT,
+	                             VK_ACCESS_TRANSFER_READ_BIT,
+	                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+	                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+	                             VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+	//printf("Swapchain transitioned to read only VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL\n");
+
+
 	VkImageSubresourceLayers image_subresource = {
 		.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
 		.baseArrayLayer = 0,
@@ -1799,34 +1978,22 @@ void VulkanExample::draw()
 	};
 
 	// Midpoint areas....
-	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
-	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
+	int32_t midpoint_of_eye_x = SERVERWIDTH / 4;
+	int32_t midpoint_of_eye_y = SERVERHEIGHT / 2;
 
 	// Get the top left point for left eye
 	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
 	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
 
 	// Get the top left point for right eye -- y is same
-	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t topleft_righteye_x = (SERVERWIDTH / 2) + midpoint_of_eye_x - (SERVERHEIGHT / 2);
 
-
+	// Image offsets
 	VkOffset3D lefteye_image_offset = {
 		.x = topleft_lefteye_x,
 		.y = topleft_eyepoint_y,
 		.z = 0,
 	};
-
-
-	// Create the vkbufferimagecopy pregions
-	VkBufferImageCopy left_copy_region = {
-		.bufferOffset      = 0,
-		.bufferRowLength   = FOVEAWIDTH * 2,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource  = image_subresource,
-		.imageOffset       = lefteye_image_offset,
-		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
-	};
-
 
 	VkOffset3D righteye_image_offset = {
 		.x = topleft_righteye_x,
@@ -1834,122 +2001,102 @@ void VulkanExample::draw()
 		.z = 0,
 	};
 
+	// Create the vkbufferimagecopy pregions
+	VkBufferImageCopy left_copy_region = {
+		.bufferOffset      = 0,
+		.bufferRowLength   = FOVEAWIDTH,
+		.bufferImageHeight = FOVEAHEIGHT,
+		.imageSubresource  = image_subresource,
+		.imageOffset       = lefteye_image_offset,
+		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	};
 
 	VkBufferImageCopy right_copy_region = {
-		.bufferOffset      = FOVEAWIDTH,
-		.bufferRowLength   = FOVEAWIDTH * 2,
+		.bufferOffset      = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t),
+		.bufferRowLength   = FOVEAWIDTH,
 		.bufferImageHeight = FOVEAHEIGHT,
 		.imageSubresource  = image_subresource,
 		.imageOffset       = righteye_image_offset,
 		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
 	};
 
-
-	// Perform copy
-	vkCmdCopyBufferToImage(copy_cmdbuf,
-	                       server_image.buffer.buffer,
-	                       swapChain.images[currentBuffer],
-	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	                       1, &left_copy_region);
-
-	vkCmdCopyBufferToImage(copy_cmdbuf,
-	                       server_image.buffer.buffer,
-	                       swapChain.images[currentBuffer],
-	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	                       1, &right_copy_region);
+	vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+		src_image, 
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+		foveal_regions.buffer.buffer, 
+		1, 
+		&left_copy_region);
 	
+	vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+		src_image, 
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+		foveal_regions.buffer.buffer, 
+		1, 
+		&right_copy_region);
 
-
-	// Transition swapchain image back to present src khr
-	vku::transition_image_layout(device, cmdPool, copy_cmdbuf,
-	                             swapChain.images[currentBuffer],
-	                             VK_ACCESS_TRANSFER_WRITE_BIT,
+	// transition swapchain image back now that copying is done
+	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
+	                             src_image,
+	                             VK_ACCESS_TRANSFER_READ_BIT,
 	                             VK_ACCESS_MEMORY_READ_BIT,
-	                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 	                             VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 	                             VK_PIPELINE_STAGE_TRANSFER_BIT,
 	                             VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-	//VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[currentBuffer]));
-
-	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuf);
-
-	gettimeofday(&copy_swapchain_end_time, nullptr);
-	timers.copy_into_swapchain_time.push_back(vku::time_difference(copy_swapchain_start_time, copy_swapchain_end_time));
-
-	// Submit frame to be drawn
-	VulkanExampleBase::submitFrame();
+	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuffer);
 	
-	pthread_join(vk_pthread.send_thread, nullptr);
-
-	total_fps += lastFPS;
-	num_frames++;
-	avg_fps = total_fps / num_frames;
+	return dst;
 }
+
+ImagePacket VulkanExample::create_image_packet()
+{
+	ImagePacket dst;
+
+	VkDeviceSize image_buffer_size = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
+	VK_CHECK_RESULT(vulkanDevice->createBuffer(
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&dst.buffer, image_buffer_size));
+
+	dst.num_bytes = (size_t) image_buffer_size;
+
+
+	return dst;
+}
+
+void VulkanExample::write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name)
+{
+	/*std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
+	std::ofstream file(filename, std::ios::out | std::ios::binary);
+	file << "P6\n"
+		 << FOVEAWIDTH << "\n"
+		 << FOVEAHEIGHT << "\n"
+		 << 255 << "\n";
+
+	for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
+	{
+		uint32_t *row = (uint32_t *) packet.data;
+		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
+		{
+			file.write((char *) row, 3);
+			row++;
+		}
+		packet.data += packet.subresource_layout.rowPitch;
+	}
+
+	file.close();*/
+}
+
 
 void VulkanExample::render()
 {
-	timeval tStart;
-	timeval tEnd;
-	gettimeofday(&tStart, nullptr);
-
 	draw();
 
-	if(camera.updated)
-	{
-		updateUniformBuffers();
-	}
-
-	gettimeofday(&tEnd, nullptr);
-
-	float ms_per_frame = vku::time_difference(tStart, tEnd);
-	timers.drawtime.push_back(ms_per_frame);
-
-	uint32_t timer_idx = timers.drawtime.size() - 1;
-
-	if(timers.copy_into_swapchain_time.size() == 1024)
-	{
-		int len = 1024 * sizeof(float) * 6;
-		float databuf[len];
-		int databufidx = 0;
-		for(uint32_t i = 0; i < timers.recv_swapchain_time.size(); i++)
-		{
-			databuf[databufidx] = timers.recv_swapchain_time[i];
-			databufidx++;
-		}
-
-		for(uint32_t i = 0; i < timers.send_cameradata_time.size(); i++)
-		{
-			databuf[databufidx] = timers.send_cameradata_time[i];
-			databufidx++;
-		}
-
-		for(uint32_t i = 0; i < timers.decode_time.size(); i++)
-		{
-			databuf[databufidx] = timers.decode_time[i];
-			databufidx++;
-		}
-
-		for(uint32_t i = 0; i < timers.copy_into_swapchain_time.size(); i++)
-		{
-			databuf[databufidx] = timers.copy_into_swapchain_time[i];
-			databufidx++;
-		}
-
-		for(uint32_t i = 0; i < timers.drawtime.size(); i++)
-		{
-			databuf[databufidx] = timers.drawtime[i];
-			databufidx++;
-		}
-
-		for(uint32_t i = 0; i < timers.mbps_total_bandwidth.size(); i++)
-		{
-			databuf[databufidx] = timers.mbps_total_bandwidth[i];
-			databufidx++;
-		}
-
-		send(client.socket_fd[0], databuf, len, 0);
-	}
+	//if(camera.updated)
+	//{
+	updateUniformBuffers();
+	//}
 }
 
 void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
@@ -1962,7 +2109,7 @@ void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
 			std::for_each(glTFScene.nodes.begin(), glTFScene.nodes.end(),
 			              [](VulkanglTFScene::Node &node)
 			              { node.visible = true; });
-			VulkanExample::buildCommandBuffers();
+			buildCommandBuffers();
 		}
 		ImGui::SameLine();
 		if(overlay->button("None"))
@@ -1970,7 +2117,7 @@ void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
 			std::for_each(glTFScene.nodes.begin(), glTFScene.nodes.end(),
 			              [](VulkanglTFScene::Node &node)
 			              { node.visible = false; });
-			VulkanExample::buildCommandBuffers();
+			buildCommandBuffers();
 		}
 		ImGui::NewLine();
 
@@ -1980,7 +2127,7 @@ void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
 		{
 			if(overlay->checkBox(node.name.c_str(), &node.visible))
 			{
-				VulkanExample::buildCommandBuffers();
+				buildCommandBuffers();
 			}
 		}
 		ImGui::EndChild();
