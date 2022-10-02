@@ -1274,7 +1274,7 @@ void VulkanExample::loadglTFFile(std::string filename)
 
 void VulkanExample::loadAssets()
 {
-	loadglTFFile(getAssetPath() + "models/sponza/sponza.gltf");
+	loadglTFFile(getAssetPath() + "models/sibenik.gltf");
 }
 
 void VulkanExample::setupDescriptors()
