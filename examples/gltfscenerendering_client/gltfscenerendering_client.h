@@ -54,8 +54,8 @@ const uint32_t DOWN_SWIDTH  = 1440;
 const uint32_t DOWN_SHEIGHT = 810;
 
 // Possibly temp offloaded rendering attributes
-const uint32_t FOVEAWIDTH  = 480;
-const uint32_t FOVEAHEIGHT = 480;
+const uint32_t FOVEAWIDTH  = 512;
+const uint32_t FOVEAHEIGHT = 360;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
