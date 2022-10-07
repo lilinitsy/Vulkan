@@ -18,7 +18,6 @@
 #include "VulkanInitializers.hpp"
 #include "vk_utils.h"
 #include "vulkan/vulkan_core.h"
-#include <CL/opencl.hpp>
 
 #ifdef __ANDROID__
 	#include <android/log.h>
@@ -921,7 +920,7 @@ static void *begin_video_decoding(void* host_renderer)
 }
 
 
-void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t out_len)
+/*void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__restrict__ in_U_h, uint8_t *__restrict__ in_V_h, uint8_t *__restrict__ out_rgba_H, size_t out_len)
 {
 	size_t in_len = out_len / 4;
 	cl::Buffer in_Y_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
@@ -938,7 +937,7 @@ void VulkanExample::rgb_to_rgba_opencl(uint8_t *__restrict__ in_Y_h, uint8_t *__
 	cl_rgb_to_rgba(cl::EnqueueArgs(cl.queue, global), in_Y_d, in_U_d, in_V_d, out_rgba_D).wait();
 
 	cl.queue.enqueueReadBuffer(out_rgba_D, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_rgba_H);
-}
+}*/
 
 
 void *send_camera_data(void *devicerenderer)

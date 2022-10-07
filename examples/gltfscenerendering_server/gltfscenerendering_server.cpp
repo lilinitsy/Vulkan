@@ -69,10 +69,12 @@ void VulkanglTFScene::loadImages(tinygltf::Model &input)
 	images.resize(input.images.size());
 	for(size_t i = 0; i < input.images.size(); i++)
 	{
+		printf("Trying to load image %lu\n", i);
 		tinygltf::Image &glTFImage = input.images[i];
 		images[i].texture.loadFromFile(path + "/" + glTFImage.uri,
 		                               VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice,
 		                               copyQueue);
+		printf("Loaded image %lu\n", i);
 	}
 }
 
@@ -856,9 +858,13 @@ void VulkanExample::loadglTFFile(std::string filename)
 
 	if(fileLoaded)
 	{
+		printf("BEFORE loadimages\n");
 		glTFScene.loadImages(glTFInput);
+		printf("std::out: Load Images called\n");
 		glTFScene.loadMaterials(glTFInput);
+		printf("std::out: Load Materials called\n");
 		glTFScene.loadTextures(glTFInput);
+		printf("std::out: Load Textures called\n");
 		const tinygltf::Scene &scene = glTFInput.scenes[0];
 		for(size_t i = 0; i < scene.nodes.size(); i++)
 		{
@@ -883,6 +889,8 @@ void VulkanExample::loadglTFFile(std::string filename)
 
 	size_t vertexBufferSize =
 		vertexBuffer.size() * sizeof(VulkanglTFScene::Vertex);
+
+	printf("Vertex Buffer Size: %lu\n", vertexBufferSize);
 	size_t indexBufferSize  = indexBuffer.size() * sizeof(uint32_t);
 	glTFScene.indices.count = static_cast<uint32_t>(indexBuffer.size());
 
@@ -1669,7 +1677,7 @@ void VulkanExample::begin_video_decoding()
 }
 
 
-void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t in_len)
+/*void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t in_len)
 {
 	size_t out_len = in_len / 4;	
 	cl::Buffer in_d(cl.context, CL_MEM_READ_ONLY, sizeof(uint8_t) * in_len);
@@ -1686,11 +1694,10 @@ void VulkanExample::rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t
 	cl.queue.enqueueReadBuffer(out_Y_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_Y_h);
 	cl.queue.enqueueReadBuffer(out_U_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_U_h);
 	cl.queue.enqueueReadBuffer(out_V_d, CL_TRUE, 0, sizeof(uint8_t) * out_len, out_V_h);
+}*/
 
-}
 
-
-void VulkanExample::setup_opencl()
+/*void VulkanExample::setup_opencl()
 {
 	std::vector<cl::Platform> all_platforms;
 	cl::Platform::get(&all_platforms);
@@ -1812,7 +1819,7 @@ void VulkanExample::setup_opencl()
 	{
 		printf("%d out_V_h: %d\n", i, out_V_h[i]);
 	}
-}
+}*/
 
 
 void VulkanExample::draw()

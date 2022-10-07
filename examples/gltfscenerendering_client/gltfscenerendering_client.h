@@ -23,7 +23,7 @@
 	#include <libavutil/imgutils.h>
 }
 
-#include <CL/opencl.hpp>
+//#include <CL/opencl.hpp>
 
 
 #define TINYGLTF_IMPLEMENTATION
@@ -43,7 +43,7 @@
 #define ENABLE_VALIDATION true
 const uint32_t PORT[2] = {1234, 1235};
 
-// Offloaded rendering attributes
+// Offloaded rendering attributes	
 const uint32_t SERVERWIDTH  = 2560;
 const uint32_t SERVERHEIGHT = 1440;
 const uint32_t CLIENTWIDTH  = 2560;
@@ -299,7 +299,7 @@ class VulkanExample : public VulkanExampleBase
 
 	bool enable_multiview = true;
 
-	struct
+	/*struct
 	{
 		cl::Context context;
 		cl::Platform platform;
@@ -307,7 +307,7 @@ class VulkanExample : public VulkanExampleBase
 		cl::CommandQueue queue;
 		cl::Program alpha_addition_program;
 		cl::Program::Sources sources;
-	} cl;
+	} cl;*/
 
 	struct
 	{

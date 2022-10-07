@@ -30,7 +30,7 @@ extern "C"
 
 //#include <ffnvcodec/nvEncodeAPI.h>
 
-#include <CL/opencl.hpp>
+//#include <CL/opencl.hpp>
 
 
 #define TINYGLTF_IMPLEMENTATION
@@ -287,7 +287,7 @@ class VulkanExample : public VulkanExampleBase
 
 	bool enable_multiview = true;
 
-	struct
+	/*struct
 	{
 		cl::Context context;
 		cl::Platform platform;
@@ -295,7 +295,7 @@ class VulkanExample : public VulkanExampleBase
 		cl::CommandQueue queue;
 		cl::Program alpha_removal_program;
 		cl::Program::Sources sources;
-	} cl;
+	} cl;*/
 
 	struct
 	{
@@ -348,8 +348,8 @@ class VulkanExample : public VulkanExampleBase
 	void decode(AVCodecContext *dec_ctx, AVFrame *frame, AVPacket *pkt, const char *filename);
 
 
-	void setup_opencl();
-	void rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t len);
+	//void setup_opencl();
+	//void rgba_to_rgb_opencl(const uint8_t *__restrict__ in_h, uint8_t *__restrict__ out_Y_h, uint8_t *__restrict__ out_U_h, uint8_t *__restrict__ out_V_h, size_t len);
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
