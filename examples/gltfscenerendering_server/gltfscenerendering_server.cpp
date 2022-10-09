@@ -69,12 +69,10 @@ void VulkanglTFScene::loadImages(tinygltf::Model &input)
 	images.resize(input.images.size());
 	for(size_t i = 0; i < input.images.size(); i++)
 	{
-		printf("Trying to load image %lu\n", i);
 		tinygltf::Image &glTFImage = input.images[i];
 		images[i].texture.loadFromFile(path + "/" + glTFImage.uri,
 		                               VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice,
 		                               copyQueue);
-		printf("Loaded image %lu\n", i);
 	}
 }
 

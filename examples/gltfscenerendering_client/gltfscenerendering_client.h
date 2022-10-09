@@ -44,18 +44,18 @@
 const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes	
-const uint32_t SERVERWIDTH  = 2560;
-const uint32_t SERVERHEIGHT = 1440;
-const uint32_t CLIENTWIDTH  = 2560;
-const uint32_t CLIENTHEIGHT = 1440;
+const uint32_t SERVERWIDTH  = 2400;
+const uint32_t SERVERHEIGHT = 1080;
+const uint32_t CLIENTWIDTH  = 2400;
+const uint32_t CLIENTHEIGHT = 1080;
 
 // downsampled width
 const uint32_t DOWN_SWIDTH  = 1920;
 const uint32_t DOWN_SHEIGHT = 1080;
 
 // Possibly temp offloaded rendering attributes
-const uint32_t FOVEAWIDTH  = 512;
-const uint32_t FOVEAHEIGHT = 360;
+const uint32_t FOVEAWIDTH  = 320;
+const uint32_t FOVEAHEIGHT = 240;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
