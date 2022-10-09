@@ -1,5 +1,7 @@
 unset shellHook
+PATH=${PATH:-}
 nix_saved_PATH="$PATH"
+XDG_DATA_DIRS=${XDG_DATA_DIRS:-}
 nix_saved_XDG_DATA_DIRS="$XDG_DATA_DIRS"
 ANDROID_SDK_ROOT='/nix/store/5dwynpqqixx2kar9710y0lmccyqysm0n-androidsdk/libexec/android-sdk'
 export ANDROID_SDK_ROOT
@@ -22,8 +24,6 @@ CONFIG_SHELL='/nix/store/qhvvivdi9pkvfpv7130sa71kpslkjv6f-bash-5.1-p16/bin/bash'
 export CONFIG_SHELL
 CXX='g++'
 export CXX
-EPOCHREALTIME='1662047954.769225'
-EPOCHSECONDS='1662047954'
 GRADLE_OPTS='-Dorg.gradle.project.android.aapt2FromMavenOverride=/nix/store/5dwynpqqixx2kar9710y0lmccyqysm0n-androidsdk/libexec/android-sdk/build-tools/32.0.0/aapt2'
 export GRADLE_OPTS
 HOSTTYPE='x86_64'
@@ -37,7 +37,7 @@ JAVA_HOME='/nix/store/s0pyblm2lbr8i276jq5qh3wfzxw7x6ci-openjdk-11.0.15+10/lib/op
 export JAVA_HOME
 LD='ld'
 export LD
-LINENO='73'
+LINENO='76'
 MACHTYPE='x86_64-pc-linux-gnu'
 NIX_BINTOOLS='/nix/store/i17qfxfgcfqryn2ylywa0a5kpcvpz5g2-binutils-wrapper-2.38'
 export NIX_BINTOOLS
@@ -49,7 +49,7 @@ NIX_CC='/nix/store/0ldkj6mklr9r8fml6927akjdl3zih46m-gcc-wrapper-11.3.0'
 export NIX_CC
 NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu='1'
 export NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu
-NIX_CFLAGS_COMPILE=' -frandom-seed=94lk94a9qy -isystem /nix/store/s0pyblm2lbr8i276jq5qh3wfzxw7x6ci-openjdk-11.0.15+10/include -isystem /nix/store/0vnfnnrrz8gbmpas0r16gl15nwwq587c-python3-3.10.4-env/include -isystem /nix/store/zpp4i2b08za4y4c5ycz5aqf5riy9k2c1-ffmpeg-4.4.1-dev/include -isystem /nix/store/hr367d3m3ph433fd59wvdq4sqf8cd8dz-nv-codec-headers-11.1.5.1/include -isystem /nix/store/gnmc1yq54rnc1jz6jsqzdcq22vrrcid7-ocl-icd-2.3.1/include -isystem /nix/store/sgkzwdhl08mnh0gxyhi91swmcl3dx73q-opencl-clhpp-2.0.15/include -isystem /nix/store/35i1xiss13m6hfqy4vc2qbsdxgd0myvc-opencl-headers-2021.06.30/include -isystem /nix/store/0hn3ivfzym0w26rp33164gjnpf1k00y9-vulkan-headers-1.3.211.0/include -isystem /nix/store/z1p73a9mb8fahyvyg6kbj5ks4brcajjl-libXau-1.0.9-dev/include -isystem /nix/store/cdcn1625pxdbyxn62al21cmmj8f6idvd-xorgproto-2021.5/include -isystem /nix/store/kjnrfnh3nqgq017c3ax394kqsi547d51-libXdmcp-1.1.3-dev/include -isystem /nix/store/ql11r8dz6k17zfzywcx2gd56srxb4mk4-libxcb-1.14-dev/include -isystem /nix/store/s0pyblm2lbr8i276jq5qh3wfzxw7x6ci-openjdk-11.0.15+10/include -isystem /nix/store/0vnfnnrrz8gbmpas0r16gl15nwwq587c-python3-3.10.4-env/include -isystem /nix/store/zpp4i2b08za4y4c5ycz5aqf5riy9k2c1-ffmpeg-4.4.1-dev/include -isystem /nix/store/hr367d3m3ph433fd59wvdq4sqf8cd8dz-nv-codec-headers-11.1.5.1/include -isystem /nix/store/gnmc1yq54rnc1jz6jsqzdcq22vrrcid7-ocl-icd-2.3.1/include -isystem /nix/store/sgkzwdhl08mnh0gxyhi91swmcl3dx73q-opencl-clhpp-2.0.15/include -isystem /nix/store/35i1xiss13m6hfqy4vc2qbsdxgd0myvc-opencl-headers-2021.06.30/include -isystem /nix/store/0hn3ivfzym0w26rp33164gjnpf1k00y9-vulkan-headers-1.3.211.0/include -isystem /nix/store/z1p73a9mb8fahyvyg6kbj5ks4brcajjl-libXau-1.0.9-dev/include -isystem /nix/store/cdcn1625pxdbyxn62al21cmmj8f6idvd-xorgproto-2021.5/include -isystem /nix/store/kjnrfnh3nqgq017c3ax394kqsi547d51-libXdmcp-1.1.3-dev/include -isystem /nix/store/ql11r8dz6k17zfzywcx2gd56srxb4mk4-libxcb-1.14-dev/include'
+NIX_CFLAGS_COMPILE=' -frandom-seed=jvwlhg1s9p -isystem /nix/store/s0pyblm2lbr8i276jq5qh3wfzxw7x6ci-openjdk-11.0.15+10/include -isystem /nix/store/0vnfnnrrz8gbmpas0r16gl15nwwq587c-python3-3.10.4-env/include -isystem /nix/store/zpp4i2b08za4y4c5ycz5aqf5riy9k2c1-ffmpeg-4.4.1-dev/include -isystem /nix/store/hr367d3m3ph433fd59wvdq4sqf8cd8dz-nv-codec-headers-11.1.5.1/include -isystem /nix/store/gnmc1yq54rnc1jz6jsqzdcq22vrrcid7-ocl-icd-2.3.1/include -isystem /nix/store/sgkzwdhl08mnh0gxyhi91swmcl3dx73q-opencl-clhpp-2.0.15/include -isystem /nix/store/35i1xiss13m6hfqy4vc2qbsdxgd0myvc-opencl-headers-2021.06.30/include -isystem /nix/store/0hn3ivfzym0w26rp33164gjnpf1k00y9-vulkan-headers-1.3.211.0/include -isystem /nix/store/z1p73a9mb8fahyvyg6kbj5ks4brcajjl-libXau-1.0.9-dev/include -isystem /nix/store/cdcn1625pxdbyxn62al21cmmj8f6idvd-xorgproto-2021.5/include -isystem /nix/store/kjnrfnh3nqgq017c3ax394kqsi547d51-libXdmcp-1.1.3-dev/include -isystem /nix/store/ql11r8dz6k17zfzywcx2gd56srxb4mk4-libxcb-1.14-dev/include -isystem /nix/store/s0pyblm2lbr8i276jq5qh3wfzxw7x6ci-openjdk-11.0.15+10/include -isystem /nix/store/0vnfnnrrz8gbmpas0r16gl15nwwq587c-python3-3.10.4-env/include -isystem /nix/store/zpp4i2b08za4y4c5ycz5aqf5riy9k2c1-ffmpeg-4.4.1-dev/include -isystem /nix/store/hr367d3m3ph433fd59wvdq4sqf8cd8dz-nv-codec-headers-11.1.5.1/include -isystem /nix/store/gnmc1yq54rnc1jz6jsqzdcq22vrrcid7-ocl-icd-2.3.1/include -isystem /nix/store/sgkzwdhl08mnh0gxyhi91swmcl3dx73q-opencl-clhpp-2.0.15/include -isystem /nix/store/35i1xiss13m6hfqy4vc2qbsdxgd0myvc-opencl-headers-2021.06.30/include -isystem /nix/store/0hn3ivfzym0w26rp33164gjnpf1k00y9-vulkan-headers-1.3.211.0/include -isystem /nix/store/z1p73a9mb8fahyvyg6kbj5ks4brcajjl-libXau-1.0.9-dev/include -isystem /nix/store/cdcn1625pxdbyxn62al21cmmj8f6idvd-xorgproto-2021.5/include -isystem /nix/store/kjnrfnh3nqgq017c3ax394kqsi547d51-libXdmcp-1.1.3-dev/include -isystem /nix/store/ql11r8dz6k17zfzywcx2gd56srxb4mk4-libxcb-1.14-dev/include'
 export NIX_CFLAGS_COMPILE
 NIX_ENFORCE_NO_NATIVE='1'
 export NIX_ENFORCE_NO_NATIVE
