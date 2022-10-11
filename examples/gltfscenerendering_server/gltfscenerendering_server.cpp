@@ -856,13 +856,9 @@ void VulkanExample::loadglTFFile(std::string filename)
 
 	if(fileLoaded)
 	{
-		printf("BEFORE loadimages\n");
 		glTFScene.loadImages(glTFInput);
-		printf("std::out: Load Images called\n");
 		glTFScene.loadMaterials(glTFInput);
-		printf("std::out: Load Materials called\n");
 		glTFScene.loadTextures(glTFInput);
-		printf("std::out: Load Textures called\n");
 		const tinygltf::Scene &scene = glTFInput.scenes[0];
 		for(size_t i = 0; i < scene.nodes.size(); i++)
 		{
