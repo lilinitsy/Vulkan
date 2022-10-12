@@ -56,10 +56,8 @@ extern "C"
 const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH  = 2400;
-const uint32_t SERVERHEIGHT = 1080;
-const uint32_t CLIENTWIDTH  = 2400;
-const uint32_t CLIENTHEIGHT = 1080;
+const uint32_t DOWN_SHEIGHT = 810;
+
 
 
 
