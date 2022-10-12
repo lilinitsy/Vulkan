@@ -1962,9 +1962,9 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.recv_camera, nullptr);
 
 
-	if(timers.drawtime.size() == 1024)
+	if(timers.drawtime.size() == 256)
 	{
-		int len = 1024 * sizeof(float) * 6;
+		int len = 256 * sizeof(float) * 6;
 		float databuf[len];
 		int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
 
@@ -1972,7 +1972,7 @@ void VulkanExample::draw()
 		std::ofstream file(filename, std::ios::out | std::ios::binary);
 		file << "recvswapchain\tsendcamera\tdecode\tcopyintoswap\tnetframetime\tmbps\n";
 
-		for(uint32_t i = 1; i < 1000; i++)
+		for(uint32_t i = 1; i < 256; i++)
 		{
 			std::string datapointstr = std::to_string(databuf[i]) + "\t" +
 			                           std::to_string(databuf[i + 1024 * 1]) + "\t" +
@@ -1990,7 +1990,7 @@ void VulkanExample::draw()
 		std::ofstream file2(filename, std::ios::out | std::ios::binary);
 		file2 << "drawtime\tencode\tcopytime\n";
 
-		for(uint32_t i = 1; i < 1000; i++)
+		for(uint32_t i = 1; i < 256; i++)
 		{
 			std::string datapointstr = std::to_string(timers.drawtime[i]) + "\t" +
 			                           std::to_string(timers.encode_time[i]) + "\t" +

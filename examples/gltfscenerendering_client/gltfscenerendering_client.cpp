@@ -1932,9 +1932,9 @@ void VulkanExample::render()
 
 	uint32_t timer_idx = timers.drawtime.size() - 1;
 
-	if(timers.copy_into_swapchain_time.size() == 1024)
+	if(timers.copy_into_swapchain_time.size() == 512)
 	{
-		int len = 1024 * sizeof(float) * 6;
+		int len = 512 * sizeof(float) * 6;
 		float databuf[len];
 		int databufidx = 0;
 		for(uint32_t i = 0; i < timers.recv_swapchain_time.size(); i++)
