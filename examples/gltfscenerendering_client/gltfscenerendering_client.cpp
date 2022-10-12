@@ -855,11 +855,15 @@ static void *begin_video_decoding(void* host_renderer)
 	timeval recv_image_end_time;
 	timeval decode_start_time;
 	timeval decode_end_time;
+	float running_recv_swapchain_time = 0.0f;
+	float running_mbps = 0.0f;
+	float running_decode_time = 0.0f;
 
 	gettimeofday(&recv_image_start_time, nullptr);
 
 	for(size_t i = 0; i < 8; i ++)
 	{
+		gettimeofday(&recv_image_start_time, nullptr);	
 		ve->server_image_idx = i;
 		uint32_t pktsize[1];
 		int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
@@ -874,8 +878,8 @@ static void *begin_video_decoding(void* host_renderer)
 		float recv_time_diff = vku::time_difference(recv_image_start_time, recv_image_end_time);
 		float mbps = (pktsize[0] * (1000.0f / recv_time_diff)) * 8e-6 ; // First parenthesis converts to bytes per second, then divide by 125000 bytes to a megabit
 
-		ve->timers.recv_swapchain_time.push_back(recv_time_diff);
-		ve->timers.mbps_total_bandwidth.push_back(mbps);
+		running_recv_swapchain_time += recv_time_diff;
+		running_mbps += mbps;
 
 		int in_line_size[1] = {2 * ve->decoder.c->width};
 		eof = !data_size;
@@ -911,11 +915,16 @@ static void *begin_video_decoding(void* host_renderer)
 				break;
 			}
 		}
+
+		gettimeofday(&decode_end_time, nullptr);
+		float decode_time = vku::time_difference(decode_start_time, decode_end_time);
+		running_decode_time += decode_time;	
 	}
 
-	gettimeofday(&decode_end_time, nullptr);
 
-	ve->timers.decode_time.push_back(vku::time_difference(decode_start_time, decode_end_time));
+	ve->timers.decode_time.push_back(running_decode_time);
+	ve->timers.recv_swapchain_time.push_back(running_recv_swapchain_time);
+	ve->timers.mbps_total_bandwidth.push_back(running_mbps);
 
 
 	return nullptr;
