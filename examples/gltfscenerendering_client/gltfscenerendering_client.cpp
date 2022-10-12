@@ -882,8 +882,6 @@ static void *begin_video_decoding(void* host_renderer)
 		uint8_t *data[1] = {ve->servbuf};
 		ve->decoder.frame->format = AV_PIX_FMT_RGBA;
 
-		timeval decode_start_time;
-		timeval decode_end_time;
 		gettimeofday(&decode_start_time, nullptr);
 
 		
@@ -1932,9 +1930,9 @@ void VulkanExample::render()
 
 	uint32_t timer_idx = timers.drawtime.size() - 1;
 
-	if(timers.copy_into_swapchain_time.size() == 512)
+	if(timers.copy_into_swapchain_time.size() == 256)
 	{
-		int len = 512 * sizeof(float) * 6;
+		int len = 256 * sizeof(float) * 6;
 		float databuf[len];
 		int databufidx = 0;
 		for(uint32_t i = 0; i < timers.recv_swapchain_time.size(); i++)

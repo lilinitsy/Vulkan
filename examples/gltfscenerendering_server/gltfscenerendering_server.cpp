@@ -1556,8 +1556,8 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 		
 		vkUnmapMemory(ve->device, ve->foveal_regions[j].buffer.memory);
 
-		gettimeofday(&encode_end_time, nullptr);
 	}
+	gettimeofday(&encode_end_time, nullptr);
 	float encode_time_diff = vku::time_difference(encode_start_time, encode_end_time);
 	ve->timers.encode_time.push_back(encode_time_diff);
 
