@@ -256,7 +256,7 @@ class VulkanExample : public VulkanExampleBase
 	ImagePacket lefteye_fovea;
 	ImagePacket righteye_fovea;
 
-	ImagePacket foveal_regions;
+	ImagePacket foveal_regions[8];
 
 	Server server;
 
@@ -335,7 +335,7 @@ class VulkanExample : public VulkanExampleBase
 
 	void setup_multiview();
 	ImagePacket create_image_packet();
-	ImagePacket copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D left_offset, VkOffset3D right_offset);
+	void copy_image_to_packet(VkImage src_image, VkOffset3D left_offset, VkOffset3D right_offset);
 	void write_imagepacket_to_file(ImagePacket packet, uint32_t buffer, std::string name);
 
 	void setup_video_encoder();

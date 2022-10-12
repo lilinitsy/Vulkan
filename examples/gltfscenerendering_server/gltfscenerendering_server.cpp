@@ -722,9 +722,20 @@ void VulkanExample::setup_multiview()
 
 void VulkanExample::buildCommandBuffers()
 {
-	int32_t left_mid_boundary = CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
-	int32_t top_boundary      = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
-	int32_t bottom_boundary   = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
+	int32_t halfwidth = width / 2;
+
+	int32_t leftmost_boundary       = 0;
+	int32_t left_mid_boundary       = CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
+	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 2;
+	int32_t leftmost_right_boundary = width / 2;
+
+	int32_t top_boundary    = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
+
+	int32_t right_leftmost_boundary  = width / 2;
+	int32_t right_left_mid_boundary  = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
+	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
+	int32_t right_rightmost_boundary = width;
 
 	// View display rendering
 	{
@@ -751,30 +762,68 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
-			VkRect2D scissor    = vks::initializers::rect2D(FOVEAWIDTH, FOVEAHEIGHT, left_mid_boundary, top_boundary);
 
+			// DO NOT drawUI in the multiview pass.
+			//drawUI(drawCmdBuffers[i]);
+
+			VkRect2D scissor_left_left   = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
+			VkRect2D scissor_left_top    = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
+			VkRect2D scissor_left_right  = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
+			VkRect2D scissor_left_bottom = vks::initializers::rect2D(left_right_mid_boundary, height - bottom_boundary, 0, height - top_boundary);
+
+			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			// Bind descriptor set
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
-			// Left eye
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
+
+			// Left eye
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
 
 			// Right eye
+			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
+
+
 			viewport.x = (float) width / 2.0f;
-			scissor.offset.x += width / 2.0f;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
+
+			scissor_left_right.offset.x += width / 2.0f;
+			scissor_left_left.offset.x += width / 2.0f;
+			scissor_left_bottom.offset.x += width / 2.0f;
+			scissor_left_top.offset.x += width / 2.0f;
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
-			// DO NOT drawUI in the multiview pass.
-			//drawUI(drawCmdBuffers[i]);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
+
+
+
+
 			vkCmdEndRenderPass(drawCmdBuffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 		}
@@ -1299,7 +1348,10 @@ void VulkanExample::prepare()
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	foveal_regions = create_image_packet();
+	for(size_t i = 0; i < 8; i++)
+	{
+		foveal_regions[i] = create_image_packet();		
+	}
 	server         = Server();
 	server.connect_to_client(PORT);
 	buildCommandBuffers();
@@ -1424,86 +1476,88 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	FILE *f;
 	std::string filename = "h264encoding" + std::to_string(ve->numframes) + ".mp4";
 
-
-	//ve->encoder.packet = av_packet_alloc();
-	if(!ve->encoder.packet)
-		exit(1);
-
-	/* put sample parameters */
-	//c->bit_rate = 400000;
-	/* resolution must be a multiple of two */
-	ve->encoder.c->width  = 2 * FOVEAWIDTH;
-	ve->encoder.c->height = FOVEAHEIGHT;
-	/* frames per second */
-	ve->encoder.c->time_base = (AVRational){1, 60};
-	// c->framerate = (AVRational){25, 1};
-
-	/* emit one intra frame every ten frames
-     * check frame pict_type before passing frame
-     * to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
-     * then gop_size is ignored and the output of encoder
-     * will always be I frame irrespective to gop_size
-     */
-	// c->gop_size		= 10;
-	// c->max_b_frames = 1;
-	ve->encoder.c->pix_fmt		= AV_PIX_FMT_YUV444P;
-	//ve->encoder.
-
-	//if(ve->encoder.codec->id == AV_CODEC_ID_H264)
-	//	av_opt_set(ve->encoder.c->priv_data, "preset", "slow", 0);
-	av_opt_set(ve->encoder.c->priv_data, "crf", "1", AV_OPT_SEARCH_CHILDREN);
-	av_opt_set(ve->encoder.c->priv_data, "qp", "1", AV_OPT_SEARCH_CHILDREN);
-
-	/* open it */
-	int ret = avcodec_open2(ve->encoder.c,ve-> encoder.codec, NULL);
-	if(ret < 0)
+	for(size_t j = 0; j < 8; j++)
 	{
-		throw std::runtime_error("Could not open codec!");
-	}
+		//ve->encoder.packet = av_packet_alloc();
+		if(!ve->encoder.packet)
+			exit(1);
 
-	//ve->encoder.frame = av_frame_alloc();
-	ve->encoder.frame->format = AV_PIX_FMT_YUV444P;
-	ve->encoder.frame->width = 2 * FOVEAWIDTH;
-	ve->encoder.frame->height = FOVEAHEIGHT;
-	ve->encoder.frame->pict_type = AV_PICTURE_TYPE_I;
-	av_frame_get_buffer(ve->encoder.frame, 1);
+		/* put sample parameters */
+		//c->bit_rate = 400000;
+		/* resolution must be a multiple of two */
+		ve->encoder.c->width  = 2 * FOVEAWIDTH;
+		ve->encoder.c->height = FOVEAHEIGHT;
+		/* frames per second */
+		ve->encoder.c->time_base = (AVRational){1, 60};
+		// c->framerate = (AVRational){25, 1};
 
-
-	/* Make sure the frame data is writable.
-		On the first round, the frame is fresh from av_frame_get_buffer()
-		and therefore we know it is writable.
-		But on the next rounds, encode() will have called
-		avcodec_send_frame(), and the codec may have kept a reference to
-		the frame in its internal structures, that makes the frame
-		unwritable.
-		av_frame_make_writable() checks that and allocates a new buffer
-		for the frame only if necessary.
+		/* emit one intra frame every ten frames
+		* check frame pict_type before passing frame
+		* to encoder, if frame->pict_type is AV_PICTURE_TYPE_I
+		* then gop_size is ignored and the output of encoder
+		* will always be I frame irrespective to gop_size
 		*/
-	ret = av_frame_get_buffer(ve->encoder.frame, 0);
+		// c->gop_size		= 10;
+		// c->max_b_frames = 1;
+		ve->encoder.c->pix_fmt		= AV_PIX_FMT_YUV444P;
+		//ve->encoder.
 
-	// Get the context or whatever
-	SwsContext *sws_ctx = sws_getContext(ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_RGBA, ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
+		//if(ve->encoder.codec->id == AV_CODEC_ID_H264)
+		//	av_opt_set(ve->encoder.c->priv_data, "preset", "slow", 0);
+		av_opt_set(ve->encoder.c->priv_data, "crf", "1", AV_OPT_SEARCH_CHILDREN);
+		av_opt_set(ve->encoder.c->priv_data, "qp", "1", AV_OPT_SEARCH_CHILDREN);
 
-	fflush(stdout);
+		/* open it */
+		int ret = avcodec_open2(ve->encoder.c,ve-> encoder.codec, NULL);
+		if(ret < 0)
+		{
+			throw std::runtime_error("Could not open codec!");
+		}
 
-	ret = av_frame_make_writable(ve->encoder.frame);
-	if(ret < 0)
-	{
-		throw std::runtime_error("Could not make av frame writeable");
+		//ve->encoder.frame = av_frame_alloc();
+		ve->encoder.frame->format = AV_PIX_FMT_YUV444P;
+		ve->encoder.frame->width = 2 * FOVEAWIDTH;
+		ve->encoder.frame->height = FOVEAHEIGHT;
+		ve->encoder.frame->pict_type = AV_PICTURE_TYPE_I;
+		av_frame_get_buffer(ve->encoder.frame, 1);
+
+
+		/* Make sure the frame data is writable.
+			On the first round, the frame is fresh from av_frame_get_buffer()
+			and therefore we know it is writable.
+			But on the next rounds, encode() will have called
+			avcodec_send_frame(), and the codec may have kept a reference to
+			the frame in its internal structures, that makes the frame
+			unwritable.
+			av_frame_make_writable() checks that and allocates a new buffer
+			for the frame only if necessary.
+			*/
+		ret = av_frame_get_buffer(ve->encoder.frame, 0);
+
+		// Get the context or whatever
+		SwsContext *sws_ctx = sws_getContext(ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_RGBA, ve->encoder.c->width, ve->encoder.c->height, AV_PIX_FMT_YUV444P, 0, 0, 0, 0);
+
+		fflush(stdout);
+
+		ret = av_frame_make_writable(ve->encoder.frame);
+		if(ret < 0)
+		{
+			throw std::runtime_error("Could not make av frame writeable");
+		}
+
+		vkMapMemory(ve->device, ve->foveal_regions[j].buffer.memory, 0, 2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->foveal_regions[j].data);
+
+		int in_line_size[1] = {2 * ve->encoder.c->width};
+		uint8_t *in_data[1] = {(uint8_t*) ve->foveal_regions[j].data};
+		ve->encoder.frame->pts = 0;
+		sws_scale(sws_ctx, in_data, in_line_size, 0, ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
+
+		encode(ve, ve->encoder.c, ve->encoder.frame, ve->encoder.packet, f);
+		
+		vkUnmapMemory(ve->device, ve->foveal_regions[j].buffer.memory);
+
+		gettimeofday(&encode_end_time, nullptr);
 	}
-
-	vkMapMemory(ve->device, ve->foveal_regions.buffer.memory, 0, 2 * FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->foveal_regions.data);
-
-	int in_line_size[1] = {2 * ve->encoder.c->width};
-	uint8_t *in_data[1] = {(uint8_t*) ve->foveal_regions.data};
-	ve->encoder.frame->pts = 0;
-	sws_scale(sws_ctx, in_data, in_line_size, 0, ve->encoder.c->height, ve->encoder.frame->data, ve->encoder.frame->linesize);
-
-	encode(ve, ve->encoder.c, ve->encoder.frame, ve->encoder.packet, f);
-	
-	vkUnmapMemory(ve->device, ve->foveal_regions.buffer.memory);
-
-	gettimeofday(&encode_end_time, nullptr);
 	float encode_time_diff = vku::time_difference(encode_start_time, encode_end_time);
 	ve->timers.encode_time.push_back(encode_time_diff);
 
@@ -1891,7 +1945,7 @@ void VulkanExample::draw()
 	gettimeofday(&copystarttime, nullptr);
 
 	// Now copy the image packet back
-	foveal_regions = copy_image_to_packet(swapChain.images[currentBuffer], foveal_regions, lefteye_copy_offset, righteye_copy_offset);
+	copy_image_to_packet(swapChain.images[currentBuffer], lefteye_copy_offset, righteye_copy_offset);
 
 	gettimeofday(&copyendtime, nullptr);
 	timers.copy_image_time.push_back(vku::time_difference(copystarttime, copyendtime));
@@ -1952,9 +2006,8 @@ void VulkanExample::draw()
 }
 
 
-ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket image_packet, VkOffset3D left_offset, VkOffset3D right_offset)
+void VulkanExample::copy_image_to_packet(VkImage src_image, VkOffset3D left_offset, VkOffset3D right_offset)
 {
-	ImagePacket dst                = image_packet;
 	VkCommandBuffer copy_cmdbuffer = vku::begin_command_buffer(device, cmdPool);
 
 	//printf("Command buffer begun\n");
@@ -1978,62 +2031,123 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 		.layerCount     = 1,
 	};
 
-	// Midpoint areas....
-	int32_t midpoint_of_eye_x = SERVERWIDTH / 4;
-	int32_t midpoint_of_eye_y = SERVERHEIGHT / 2;
+	int32_t halfwidth = width / 2;
 
-	// Get the top left point for left eye
-	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+	int32_t leftmost_boundary       = 0;
+	int32_t left_mid_boundary       = CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
+	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 2;
+	int32_t leftmost_right_boundary = width / 2;
 
-	// Get the top left point for right eye -- y is same
-	int32_t topleft_righteye_x = (SERVERWIDTH / 2) + midpoint_of_eye_x - (SERVERHEIGHT / 2);
+	int32_t top_boundary    = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
 
-	// Image offsets
-	VkOffset3D lefteye_image_offset = {
-		.x = topleft_lefteye_x,
-		.y = topleft_eyepoint_y,
+	int32_t right_leftmost_boundary  = width / 2;
+	int32_t right_left_mid_boundary  = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
+	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
+	int32_t right_rightmost_boundary = width;
+
+
+
+	VkOffset3D left_left = {
+		.x = 0,
+		.y = 0,
 		.z = 0,
 	};
 
-	VkOffset3D righteye_image_offset = {
-		.x = topleft_righteye_x,
-		.y = topleft_eyepoint_y,
+	VkOffset3D left_top = {
+		.x = left_mid_boundary,
+		.y = 0,
+		.z = 0,
+	};
+
+	VkOffset3D left_right= {
+		.x = left_right_mid_boundary,
+		.y = (int32_t) height - bottom_boundary,
+		.z = 0,
+	};
+
+	VkOffset3D left_bottom = {
+		.x = 0,
+		.y = (int32_t) height - top_boundary,
 		.z = 0,
 	};
 
 	// Create the vkbufferimagecopy pregions
-	VkBufferImageCopy left_copy_region = {
-		.bufferOffset      = 0,
-		.bufferRowLength   = FOVEAWIDTH,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource  = image_subresource,
-		.imageOffset       = lefteye_image_offset,
-		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
-	};
 
-	VkBufferImageCopy right_copy_region = {
-		.bufferOffset      = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t),
-		.bufferRowLength   = FOVEAWIDTH,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource  = image_subresource,
-		.imageOffset       = righteye_image_offset,
-		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
-	};
+	for(size_t i = 0; i < 2; i++)
+	{
+		VkBufferImageCopy left_left_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) left_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - top_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_left,
+			.imageExtent       = {(uint32_t) left_mid_boundary, height - top_boundary, 1},
+		};
 
-	vkCmdCopyImageToBuffer(copy_cmdbuffer, 
-		src_image, 
-		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-		foveal_regions.buffer.buffer, 
-		1, 
-		&left_copy_region);
-	
-	vkCmdCopyImageToBuffer(copy_cmdbuffer, 
-		src_image, 
-		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-		foveal_regions.buffer.buffer, 
-		1, 
-		&right_copy_region);
+		VkBufferImageCopy left_top_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) leftmost_right_boundary - left_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - bottom_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_top,
+			.imageExtent       = {(uint32_t) leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, 1},
+		};
+
+		VkBufferImageCopy left_right_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) leftmost_right_boundary - left_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - top_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_right,
+			.imageExtent       = {(uint32_t) leftmost_right_boundary - left_mid_boundary, height - top_boundary, 1},
+		};
+
+		VkBufferImageCopy left_bottom_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) left_right_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - bottom_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_bottom,
+			.imageExtent       = {(uint32_t) left_right_mid_boundary, (uint32_t) height - bottom_boundary, 1},
+		};	
+
+		vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+			src_image, 
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+			foveal_regions[0].buffer.buffer, 
+			1, 
+			&left_left_copy_region);
+		
+		vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+			src_image, 
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+			foveal_regions[1].buffer.buffer, 
+			1, 
+			&left_top_copy_region);
+
+		vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+			src_image, 
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+			foveal_regions[2].buffer.buffer, 
+			1, 
+			&left_top_copy_region);
+
+		vkCmdCopyImageToBuffer(copy_cmdbuffer, 
+			src_image, 
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+			foveal_regions[3].buffer.buffer, 
+			1, 
+			&left_top_copy_region);	
+
+		left_left.x += width / 2.0f;
+		left_top.x += width / 2.0f;
+		left_right.x += width / 2.0f;
+		left_bottom.x += width / 2.0f;
+	}
+
+
+
 
 	// transition swapchain image back now that copying is done
 	vku::transition_image_layout(device, cmdPool, copy_cmdbuffer,
@@ -2045,9 +2159,7 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 	                             VK_PIPELINE_STAGE_TRANSFER_BIT,
 	                             VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuffer);
-	
-	return dst;
+	vku::end_command_buffer(device, queue, cmdPool, copy_cmdbuffer);	
 }
 
 ImagePacket VulkanExample::create_image_packet()

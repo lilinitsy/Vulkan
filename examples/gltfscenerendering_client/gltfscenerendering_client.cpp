@@ -833,11 +833,9 @@ static void decode(void *host_renderer)
 		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "GOT OUT OF FOR LOOP\n");
 		#endif
 
-
-		
-		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
-		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
+		vkMapMemory(ve->device, ve->server_image[ve->server_image_idx].buffer.memory, 0, frame->width * frame->height * sizeof(uint32_t), 0, (void**) &ve->server_image[ve->server_image_idx].data);
+		memcpy(ve->server_image[ve->server_image_idx].data, rgba_frame, frame->width * frame->height * sizeof(uint32_t));
+		vkUnmapMemory(ve->device, ve->server_image[ve->server_image_idx].buffer.memory);
 		
 		#ifdef __ANDROID__
 		__android_log_print(ANDROID_LOG_DEBUG, "LOG_TAG", "MEMCPY'D INTO GPU\n");
@@ -855,59 +853,65 @@ static void *begin_video_decoding(void* host_renderer)
 
 	timeval recv_image_start_time;
 	timeval recv_image_end_time;
-	gettimeofday(&recv_image_start_time, nullptr);
-
-
-	uint32_t pktsize[1];
-	int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
-	int eof;
-	bool should_break = false;
-
-	int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
-	uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
-
-	gettimeofday(&recv_image_end_time, nullptr);
-
-	float recv_time_diff = vku::time_difference(recv_image_start_time, recv_image_end_time);
-	float mbps = (pktsize[0] * (1000.0f / recv_time_diff)) * 8e-6 ; // First parenthesis converts to bytes per second, then divide by 125000 bytes to a megabit
-
-	ve->timers.recv_swapchain_time.push_back(recv_time_diff);
-	ve->timers.mbps_total_bandwidth.push_back(mbps);
-
-	int in_line_size[1] = {2 * ve->decoder.c->width};
-	eof = !data_size;
-	uint8_t *data[1] = {ve->servbuf};
-	ve->decoder.frame->format = AV_PIX_FMT_RGBA;
-
 	timeval decode_start_time;
 	timeval decode_end_time;
-	gettimeofday(&decode_start_time, nullptr);
 
-	
-	while(data_size > 0 || eof)
+	gettimeofday(&recv_image_start_time, nullptr);
+
+	for(size_t i = 0; i < 8; i ++)
 	{
-		//printf("%d In loop of begin_decoder\n", num_frames);
-		int ret = av_parser_parse2(ve->decoder.parser, ve->decoder.c, &ve->decoder.packet->data, &ve->decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
-		//printf("RET: %d\n", ret);
-		if(ret < 0)
-		{
-			throw std::runtime_error("Decoder: Error while parsing");
-		}
+		ve->server_image_idx = i;
+		uint32_t pktsize[1];
+		int num_bytes_encoded_packet = recv(ve->client.socket_fd[0], pktsize, sizeof(uint32_t), MSG_WAITALL);
+		int eof;
+		bool should_break = false;
 
-		data[0] += ret;
-		data_size -= ret;
+		int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
+		uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
 
-		if(ve->decoder.packet->size)
-		{
-			//sws_scale(sws_ctx, ve->decoder.frame->data, ve->decoder.frame->linesize, 0, ve->decoder.c->height, data, in_line_size);
-			//sws_scale(sws_ctx, data, in_line_size, 0, ve->decoder.c->height, ve->decoder.frame->data, ve->decoder.frame->linesize);
-			decode((void*) ve);
-		}
+		gettimeofday(&recv_image_end_time, nullptr);
 
-		else
+		float recv_time_diff = vku::time_difference(recv_image_start_time, recv_image_end_time);
+		float mbps = (pktsize[0] * (1000.0f / recv_time_diff)) * 8e-6 ; // First parenthesis converts to bytes per second, then divide by 125000 bytes to a megabit
+
+		ve->timers.recv_swapchain_time.push_back(recv_time_diff);
+		ve->timers.mbps_total_bandwidth.push_back(mbps);
+
+		int in_line_size[1] = {2 * ve->decoder.c->width};
+		eof = !data_size;
+		uint8_t *data[1] = {ve->servbuf};
+		ve->decoder.frame->format = AV_PIX_FMT_RGBA;
+
+		timeval decode_start_time;
+		timeval decode_end_time;
+		gettimeofday(&decode_start_time, nullptr);
+
+		
+		while(data_size > 0 || eof)
 		{
-			should_break = true;
-			break;
+			//printf("%d In loop of begin_decoder\n", num_frames);
+			int ret = av_parser_parse2(ve->decoder.parser, ve->decoder.c, &ve->decoder.packet->data, &ve->decoder.packet->size, data[0], data_size, AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+			//printf("RET: %d\n", ret);
+			if(ret < 0)
+			{
+				throw std::runtime_error("Decoder: Error while parsing");
+			}
+
+			data[0] += ret;
+			data_size -= ret;
+
+			if(ve->decoder.packet->size)
+			{
+				//sws_scale(sws_ctx, ve->decoder.frame->data, ve->decoder.frame->linesize, 0, ve->decoder.c->height, data, in_line_size);
+				//sws_scale(sws_ctx, data, in_line_size, 0, ve->decoder.c->height, ve->decoder.frame->data, ve->decoder.frame->linesize);
+				decode((void*) ve);
+			}
+
+			else
+			{
+				should_break = true;
+				break;
+			}
 		}
 	}
 
@@ -1007,59 +1011,26 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-			VkRect2D scissor_left_left   = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
-			VkRect2D scissor_left_top    = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
-			VkRect2D scissor_left_right  = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
-			VkRect2D scissor_left_bottom = vks::initializers::rect2D(left_right_mid_boundary, height - bottom_boundary, 0, height - top_boundary);
-
 			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
+			VkRect2D scissor    = vks::initializers::rect2D(FOVEAWIDTH, FOVEAHEIGHT, left_mid_boundary, top_boundary);
+
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			// Bind descriptor set
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
 
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
-
 			// Left eye
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
+			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
 
 			// Right eye
-			//VkRect2D scissor_right_left = vks::initializers::rect2D(left_mid_boundary, height - top_boundary,)
-
-
 			viewport.x = (float) width / 2.0f;
+			scissor.offset.x += width / 2.0f;
 			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
-
-			scissor_left_right.offset.x += width / 2.0f;
-			scissor_left_left.offset.x += width / 2.0f;
-			scissor_left_bottom.offset.x += width / 2.0f;
-			scissor_left_top.offset.x += width / 2.0f;
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_left);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_top);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_right);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor_left_bottom);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
@@ -1563,12 +1534,14 @@ void VulkanExample::preparePipelines()
 
 void VulkanExample::create_server_image_buffer()
 {
-	VkDeviceSize image_buffer_size = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
-	VK_CHECK_RESULT(vulkanDevice->createBuffer(
-		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&server_image.buffer, image_buffer_size));
-
+	for(size_t i = 0; i < 8; i++)
+	{
+		VkDeviceSize image_buffer_size = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&server_image[i].buffer, image_buffer_size));
+	}
 }
 
 void VulkanExample::prepareUniformBuffers()
@@ -1797,66 +1770,119 @@ void VulkanExample::draw()
 		.layerCount     = 1,
 	};
 
-	// Midpoint areas....
-	int32_t midpoint_of_eye_x = CLIENTWIDTH / 4;
-	int32_t midpoint_of_eye_y = CLIENTHEIGHT / 2;
+	int32_t halfwidth = width / 2;
 
-	// Get the top left point for left eye
-	int32_t topleft_lefteye_x  = midpoint_of_eye_x - (FOVEAWIDTH / 2);
-	int32_t topleft_eyepoint_y = midpoint_of_eye_y - (FOVEAHEIGHT / 2);
+	int32_t leftmost_boundary       = 0;
+	int32_t left_mid_boundary       = CLIENTWIDTH / 4 - FOVEAWIDTH / 2;
+	int32_t left_right_mid_boundary = CLIENTWIDTH / 4 + FOVEAWIDTH / 2;
+	int32_t leftmost_right_boundary = width / 2;
 
-	// Get the top left point for right eye -- y is same
-	int32_t topleft_righteye_x = (CLIENTWIDTH / 2) + midpoint_of_eye_x - (FOVEAWIDTH / 2);
+	int32_t top_boundary    = CLIENTHEIGHT / 2 - FOVEAHEIGHT / 2;
+	int32_t bottom_boundary = CLIENTHEIGHT / 2 + FOVEAHEIGHT / 2;
+
+	int32_t right_leftmost_boundary  = width / 2;
+	int32_t right_left_mid_boundary  = halfwidth + halfwidth / 2 - FOVEAWIDTH / 2;
+	int32_t right_right_mid_boundary = halfwidth + halfwidth / 2 + FOVEAWIDTH / 2;
+	int32_t right_rightmost_boundary = width;
 
 
-	VkOffset3D lefteye_image_offset = {
-		.x = topleft_lefteye_x,
-		.y = topleft_eyepoint_y,
+
+	VkOffset3D left_left = {
+		.x = 0,
+		.y = 0,
 		.z = 0,
 	};
 
-
-	// Create the vkbufferimagecopy pregions
-	VkBufferImageCopy left_copy_region = {
-		.bufferOffset      = 0,
-		.bufferRowLength   = FOVEAWIDTH * 2,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource  = image_subresource,
-		.imageOffset       = lefteye_image_offset,
-		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
-	};
-
-
-	VkOffset3D righteye_image_offset = {
-		.x = topleft_righteye_x,
-		.y = topleft_eyepoint_y,
+	VkOffset3D left_top = {
+		.x = left_mid_boundary,
+		.y = 0,
 		.z = 0,
 	};
 
-
-	VkBufferImageCopy right_copy_region = {
-		.bufferOffset      = FOVEAWIDTH,
-		.bufferRowLength   = FOVEAWIDTH * 2,
-		.bufferImageHeight = FOVEAHEIGHT,
-		.imageSubresource  = image_subresource,
-		.imageOffset       = righteye_image_offset,
-		.imageExtent       = {FOVEAWIDTH, FOVEAHEIGHT, 1},
+	VkOffset3D left_right= {
+		.x = left_right_mid_boundary,
+		.y = (int32_t) height - bottom_boundary,
+		.z = 0,
 	};
 
+	VkOffset3D left_bottom = {
+		.x = 0,
+		.y = (int32_t) height - top_boundary,
+		.z = 0,
+	};
 
-	// Perform copy
-	vkCmdCopyBufferToImage(copy_cmdbuf,
-	                       server_image.buffer.buffer,
-	                       swapChain.images[currentBuffer],
-	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	                       1, &left_copy_region);
+	for(size_t i = 0; i < 2; i++)
+	{
+		// Create the vkbufferimagecopy pregions
+		VkBufferImageCopy left_left_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) left_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - top_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_left,
+			.imageExtent       = {(uint32_t) left_mid_boundary, height - top_boundary, 1},
+		};
 
-	vkCmdCopyBufferToImage(copy_cmdbuf,
-	                       server_image.buffer.buffer,
-	                       swapChain.images[currentBuffer],
-	                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-	                       1, &right_copy_region);
-	
+		VkBufferImageCopy left_top_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) leftmost_right_boundary - left_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - bottom_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_top,
+			.imageExtent       = {(uint32_t) leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, 1},
+		};
+
+		VkBufferImageCopy left_right_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) leftmost_right_boundary - left_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - top_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_right,
+			.imageExtent       = {(uint32_t) leftmost_right_boundary - left_mid_boundary, height - top_boundary, 1},
+		};
+
+		VkBufferImageCopy left_bottom_copy_region = {
+			.bufferOffset      = 0,
+			.bufferRowLength   = (uint32_t) left_right_mid_boundary,
+			.bufferImageHeight = (uint32_t) height - bottom_boundary,
+			.imageSubresource  = image_subresource,
+			.imageOffset       = left_bottom,
+			.imageExtent       = {(uint32_t) left_right_mid_boundary, height - bottom_boundary, 1},
+		};	
+		
+		vkCmdCopyBufferToImage(copy_cmdbuf,
+			server_image[0].buffer.buffer,
+			swapChain.images[currentBuffer],
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&left_left_copy_region);
+
+		vkCmdCopyBufferToImage(copy_cmdbuf,
+			server_image[1].buffer.buffer,
+			swapChain.images[currentBuffer],
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&left_left_copy_region);
+
+		vkCmdCopyBufferToImage(copy_cmdbuf,
+			server_image[2].buffer.buffer,
+			swapChain.images[currentBuffer],
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&left_left_copy_region);
+
+		vkCmdCopyBufferToImage(copy_cmdbuf,
+			server_image[3].buffer.buffer,
+			swapChain.images[currentBuffer],
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&left_left_copy_region);
+
+		left_left.x += width / 2.0f;
+		left_top.x += width / 2.0f;
+		left_right.x += width / 2.0f;
+		left_bottom.x += width / 2.0f;
+	}
 
 
 	// Transition swapchain image back to present src khr

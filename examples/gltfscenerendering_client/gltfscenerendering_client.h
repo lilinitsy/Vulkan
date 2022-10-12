@@ -250,7 +250,8 @@ class VulkanExample : public VulkanExampleBase
 		void *data;
 	};
 
-	ServerImage server_image;
+	ServerImage server_image[8];
+	size_t server_image_idx;
 
 	struct
 	{
