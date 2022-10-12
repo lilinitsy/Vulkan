@@ -1975,11 +1975,11 @@ void VulkanExample::draw()
 		for(uint32_t i = 1; i < 256; i++)
 		{
 			std::string datapointstr = std::to_string(databuf[i]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 1]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 2]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 3]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 4]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 5]) + "\n";
+			                           std::to_string(databuf[i + 256 * 1]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 2]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 3]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 4]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 5]) + "\n";
 			file << datapointstr;
 		}
 

@@ -926,6 +926,8 @@ static void *begin_video_decoding(void* host_renderer)
 	ve->timers.recv_swapchain_time.push_back(running_recv_swapchain_time);
 	ve->timers.mbps_total_bandwidth.push_back(running_mbps);
 
+	printf("decode, recv, mbps: %f %f %f\n", running_decode_time, running_recv_swapchain_time, running_mbps);
+
 
 	return nullptr;
 }
