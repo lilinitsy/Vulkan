@@ -64,8 +64,8 @@ const uint32_t CLIENTHEIGHT = 1080;
 
 
 // Possibly temp offloaded rendering attributes
-const uint32_t FOVEAWIDTH  = 512;
-const uint32_t FOVEAHEIGHT = 360;
+const uint32_t FOVEAWIDTH  = 1200;
+const uint32_t FOVEAHEIGHT = 1080;
 
 
 // Contains everything required to render a basic glTF scene in Vulkan
@@ -317,6 +317,7 @@ class VulkanExample : public VulkanExampleBase
 
 	bool should_wait_for_camera_data = true;
 
+	std::vector<float> global_time_between_frames;
 	
 
 

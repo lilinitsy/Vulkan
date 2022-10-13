@@ -1908,9 +1908,9 @@ void VulkanExample::draw()
 	pthread_join(vk_pthread.recv_camera, nullptr);
 
 
-	if(timers.drawtime.size() == 1024)
+	if(timers.drawtime.size() == 256)
 	{
-		int len = 1024 * sizeof(float) * 6;
+		int len = 256 * sizeof(float) * 6;
 		float databuf[len];
 		int server_read = recv(server.client_fd[0], databuf, len, MSG_WAITALL);
 
@@ -1921,11 +1921,11 @@ void VulkanExample::draw()
 		for(uint32_t i = 1; i < 1000; i++)
 		{
 			std::string datapointstr = std::to_string(databuf[i]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 1]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 2]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 3]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 4]) + "\t" +
-			                           std::to_string(databuf[i + 1024 * 5]) + "\n";
+			                           std::to_string(databuf[i + 256 * 1]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 2]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 3]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 4]) + "\t" +
+			                           std::to_string(databuf[i + 256 * 5]) + "\n";
 			file << datapointstr;
 		}
 
@@ -1991,14 +1991,14 @@ ImagePacket VulkanExample::copy_image_to_packet(VkImage src_image, ImagePacket i
 
 	// Image offsets
 	VkOffset3D lefteye_image_offset = {
-		.x = topleft_lefteye_x,
-		.y = topleft_eyepoint_y,
+		.x = 0,
+		.y = 0,
 		.z = 0,
 	};
 
 	VkOffset3D righteye_image_offset = {
-		.x = topleft_righteye_x,
-		.y = topleft_eyepoint_y,
+		.x = SERVERWIDTH / 2,
+		.y = 0,
 		.z = 0,
 	};
 

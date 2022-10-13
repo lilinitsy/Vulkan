@@ -792,7 +792,7 @@ static void decode(void *host_renderer)
 	
 		fflush(stdout);
 	
-		VkDeviceSize num_bytes_for_images = FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t);
+		VkDeviceSize num_bytes_for_images = CLIENTWIDTH * CLIENTHEIGHT * sizeof(uint32_t);
 		size_t decoder_rgba_num_bytes = frame->width * frame->height * sizeof(uint32_t);
 
 		#ifdef __ANDROID__
@@ -818,6 +818,7 @@ static void decode(void *host_renderer)
 
 
 		unsigned char *rgba_frame = new unsigned char[frame->width * frame->height * sizeof(uint32_t)];
+		printf("width height: %d %d\n", frame->width, frame->height);
 
 		for(size_t i = 0, j = 0; i < frame->width * frame->height * sizeof(uint32_t); i+= 4, j++)
 		{
@@ -835,8 +836,8 @@ static void decode(void *host_renderer)
 
 
 		
-		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
-		memcpy(ve->server_image.data, rgba_frame, FOVEAWIDTH * 2 * FOVEAHEIGHT * sizeof(uint32_t));
+		vkMapMemory(ve->device, ve->server_image.buffer.memory, 0, frame->width * frame->height * sizeof(uint32_t), 0, (void**) &ve->server_image.data);
+		memcpy(ve->server_image.data, rgba_frame, frame->width * frame->height * sizeof(uint32_t));
 		vkUnmapMemory(ve->device, ve->server_image.buffer.memory);
 		
 		#ifdef __ANDROID__
@@ -1006,7 +1007,7 @@ void VulkanExample::buildCommandBuffers()
 
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
+			/*
 			VkRect2D scissor_left_left   = vks::initializers::rect2D(left_mid_boundary, height - top_boundary, 0, 0);
 			VkRect2D scissor_left_top    = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - bottom_boundary, left_mid_boundary, 0);
 			VkRect2D scissor_left_right  = vks::initializers::rect2D(leftmost_right_boundary - left_mid_boundary, height - top_boundary, left_right_mid_boundary, height - bottom_boundary);
@@ -1061,7 +1062,7 @@ void VulkanExample::buildCommandBuffers()
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
 
 			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
+			*/
 			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
 			// DO NOT drawUI in the multiview pass.
 			//drawUI(drawCmdBuffers[i]);
@@ -1101,14 +1102,14 @@ void VulkanExample::buildCommandBuffers()
 			VK_CHECK_RESULT(vkBeginCommandBuffer(multiview_pass.command_buffers[i], &cmdBufInfo));
 
 			vkCmdBeginRenderPass(multiview_pass.command_buffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdSetViewport(multiview_pass.command_buffers[i], 0, 1, &viewport);
+			/*vkCmdSetViewport(multiview_pass.command_buffers[i], 0, 1, &viewport);
 			vkCmdSetScissor(multiview_pass.command_buffers[i], 0, 1, &scissor);
 
 			// Bind scene matrices descriptor to set 0
 			vkCmdBindDescriptorSets(multiview_pass.command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.multiview, 0, 1, &descriptor_sets.multiview, 0, nullptr);
 
 			// POI: Draw the glTF scene
-			glTFScene.draw(multiview_pass.command_buffers[i], pipeline_layouts.multiview);
+			glTFScene.draw(multiview_pass.command_buffers[i], pipeline_layouts.multiview);*/
 
 			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
 			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
@@ -1906,9 +1907,9 @@ void VulkanExample::render()
 
 	uint32_t timer_idx = timers.drawtime.size() - 1;
 
-	if(timers.copy_into_swapchain_time.size() == 1024)
+	if(timers.copy_into_swapchain_time.size() == 256)
 	{
-		int len = 1024 * sizeof(float) * 6;
+		int len = 256 * sizeof(float) * 6;
 		float databuf[len];
 		int databufidx = 0;
 		for(uint32_t i = 0; i < timers.recv_swapchain_time.size(); i++)
