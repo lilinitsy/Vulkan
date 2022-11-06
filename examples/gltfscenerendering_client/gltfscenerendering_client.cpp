@@ -19,7 +19,7 @@
 #include "gltfscenerendering_client.h"
 
 /*
-        Vulkan glTF scene class
+		Vulkan glTF scene class
 */
 
 pthread_mutex_t gpu_map_lock;
@@ -48,9 +48,9 @@ VulkanglTFScene::~VulkanglTFScene()
 }
 
 /*
-        glTF loading functions
+		glTF loading functions
 
-        The following functions take a glTF input model loaded via tinyglTF and
+		The following functions take a glTF input model loaded via tinyglTF and
    convert all required data into our own structure
 */
 
@@ -315,7 +315,7 @@ VulkanglTFScene::getTextureDescriptor(const size_t index)
 }
 
 /*
-        glTF rendering functions
+		glTF rendering functions
 */
 
 // Draw a single node including child nodes (if present)
@@ -384,7 +384,7 @@ void VulkanglTFScene::draw(VkCommandBuffer commandBuffer,
 }
 
 /*
-        Vulkan Example class
+		Vulkan Example class
 */
 
 VulkanExample::VulkanExample() :
@@ -396,46 +396,14 @@ VulkanExample::VulkanExample() :
 	camera.setPosition(glm::vec3(2.2f, -2.0f, 0.25f));
 	camera.setRotation(glm::vec3(-180.0f, -90.0f, 0.0f));
 	camera.movementSpeed = 4.0f;
-
-	// Multiview setup
-	// Enable extension required for multiview
-	enabledDeviceExtensions.push_back(VK_KHR_MULTIVIEW_EXTENSION_NAME);
-
-	// Reading device properties and features for multiview requires VK_KHR_get_physical_device_properties2 to be enabled
-	enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-
-	// Enable required extension features
-	physical_device_multiview_features = {
-		.sType	   = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR,
-		.multiview = VK_TRUE,
-	};
-	deviceCreatepNextChain = &physical_device_multiview_features;
 }
 
 VulkanExample::~VulkanExample()
 {
-	vkDestroyPipelineLayout(device, pipeline_layouts.multiview, nullptr);
+	vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptor_set_layouts.matrices, nullptr);
 	vkDestroyDescriptorSetLayout(device, descriptor_set_layouts.textures, nullptr);
 	shaderData.buffer.destroy();
-
-	// Multiview destroyers
-	vkDestroyImageView(device, multiview_pass.colour.view, nullptr);
-	vkDestroyImage(device, multiview_pass.colour.image, nullptr);
-	vkFreeMemory(device, multiview_pass.colour.memory, nullptr);
-	vkDestroyImageView(device, multiview_pass.depth.view, nullptr);
-	vkDestroyImage(device, multiview_pass.depth.image, nullptr);
-	vkFreeMemory(device, multiview_pass.depth.memory, nullptr);
-
-	vkDestroyRenderPass(device, multiview_pass.renderpass, nullptr);
-	vkDestroySampler(device, multiview_pass.sampler, nullptr);
-	vkDestroyFramebuffer(device, multiview_pass.framebuffer, nullptr);
-
-	vkDestroySemaphore(device, multiview_pass.semaphore, nullptr);
-	for(uint32_t i = 0; i < multiview_pass.wait_fences.size(); i++)
-	{
-		vkDestroyFence(device, multiview_pass.wait_fences[i], nullptr);
-	}
 }
 
 void VulkanExample::getEnabledFeatures()
@@ -444,431 +412,47 @@ void VulkanExample::getEnabledFeatures()
 }
 
 
-void VulkanExample::setup_multiview()
-{
-	uint32_t multiview_layers = 2;
-
-	// Colour attachment setup
-	{
-		VkImageCreateInfo image_ci = {
-			.sType		   = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			.pNext		   = nullptr,
-			.flags		   = 0,
-			.imageType	   = VK_IMAGE_TYPE_2D,
-			.format		   = swapChain.colorFormat,
-			.extent		   = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
-			.mipLevels	   = 1,
-			.arrayLayers   = multiview_layers,
-			.samples	   = VK_SAMPLE_COUNT_1_BIT,
-			.tiling		   = VK_IMAGE_TILING_OPTIMAL,
-			.usage		   = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-		};
-		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.colour.image));
-
-		VkMemoryRequirements memory_requirements;
-		vkGetImageMemoryRequirements(device, multiview_pass.colour.image, &memory_requirements);
-
-		VkMemoryAllocateInfo memory_ai = {
-			.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-			.allocationSize	 = memory_requirements.size,
-			.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-		};
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &multiview_pass.colour.memory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, multiview_pass.colour.image, multiview_pass.colour.memory, 0));
-
-
-		VkImageSubresourceRange colour_subresource = {
-			.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
-			.baseMipLevel	= 0,
-			.levelCount		= 1,
-			.baseArrayLayer = 0,
-			.layerCount		= multiview_layers,
-		};
-
-		VkImageViewCreateInfo image_view_ci = {
-			.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.pNext			  = nullptr,
-			.flags			  = 0,
-			.image			  = multiview_pass.colour.image,
-			.viewType		  = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
-			.format			  = swapChain.colorFormat,
-			.subresourceRange = colour_subresource,
-		};
-		VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &multiview_pass.colour.view));
-
-		VkSamplerCreateInfo sampler_ci = {
-			.sType			  = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-			.pNext			  = nullptr,
-			.flags			  = 0,
-			.magFilter		  = VK_FILTER_NEAREST,
-			.minFilter		  = VK_FILTER_NEAREST,
-			.mipmapMode		  = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-			.addressModeU	  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.addressModeV	  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.addressModeW	  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-			.mipLodBias		  = 0.0f,
-			.anisotropyEnable = VK_TRUE,
-			.maxAnisotropy	  = 1.0f,
-			.minLod			  = 0.0f,
-			.maxLod			  = 1.0f,
-			.borderColor	  = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
-		};
-		VK_CHECK_RESULT(vkCreateSampler(device, &sampler_ci, nullptr, &multiview_pass.sampler));
-
-		// Setup the descriptors for the colour attachment
-		multiview_pass.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		multiview_pass.descriptor.imageView	  = multiview_pass.colour.view;
-		multiview_pass.descriptor.sampler	  = multiview_pass.sampler;
-	}
-
-	// depth/stencil FBO setup
-	{
-		VkImageCreateInfo image_ci = {
-			.sType		 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-			.pNext		 = nullptr,
-			.flags		 = 0,
-			.imageType	 = VK_IMAGE_TYPE_2D,
-			.format		 = depthFormat,
-			.extent		 = {DOWN_SWIDTH, DOWN_SHEIGHT, 1},
-			.mipLevels	 = 1,
-			.arrayLayers = multiview_layers,
-			.samples	 = VK_SAMPLE_COUNT_1_BIT,
-			.tiling		 = VK_IMAGE_TILING_OPTIMAL,
-			.usage		 = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		};
-		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &multiview_pass.depth.image));
-
-		VkMemoryRequirements memory_requirements;
-		vkGetImageMemoryRequirements(device, multiview_pass.depth.image, &memory_requirements);
-
-		VkMemoryAllocateInfo memory_ai = {
-			.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-			.allocationSize	 = memory_requirements.size,
-			.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
-		};
-
-		VkImageSubresourceRange depth_stencil_subresource = {
-			.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-			.baseMipLevel	= 0,
-			.levelCount		= 1,
-			.baseArrayLayer = 0,
-			.layerCount		= multiview_layers,
-		};
-
-		VkImageViewCreateInfo depth_stencil_view = {
-			.sType			  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.pNext			  = nullptr,
-			.flags			  = 0,
-			.image			  = multiview_pass.depth.image,
-			.viewType		  = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
-			.format			  = depthFormat,
-			.subresourceRange = depth_stencil_subresource,
-		};
-
-		VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &multiview_pass.depth.memory));
-		VK_CHECK_RESULT(vkBindImageMemory(device, multiview_pass.depth.image, multiview_pass.depth.memory, 0));
-		VK_CHECK_RESULT(vkCreateImageView(device, &depth_stencil_view, nullptr, &multiview_pass.depth.view));
-	}
-
-	// Multiview Renderpass
-	{
-		VkAttachmentDescription attachments[2];
-
-		// Colour attachment
-		attachments[0] = {
-			.flags			= 0,
-			.format			= swapChain.colorFormat,
-			.samples		= VK_SAMPLE_COUNT_1_BIT,
-			.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout	= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		};
-
-
-
-		// Depth attachment
-		attachments[1] = {
-			.flags			= 0,
-			.format			= depthFormat,
-			.samples		= VK_SAMPLE_COUNT_1_BIT,
-			.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
-			.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_CLEAR,
-			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-			.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
-			.finalLayout	= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-		};
-
-		// Attachment references
-		VkAttachmentReference colour_reference = {
-			.attachment = 0,
-			.layout		= VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		};
-
-		VkAttachmentReference depth_reference = {
-			.attachment = 1,
-			.layout		= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-		};
-
-
-		// Subpass dependencies
-		VkSubpassDescription subpass_description = {
-			.pipelineBindPoint		 = VK_PIPELINE_BIND_POINT_GRAPHICS,
-			.colorAttachmentCount	 = 1,
-			.pColorAttachments		 = &colour_reference,
-			.pDepthStencilAttachment = &depth_reference,
-		};
-
-		VkSubpassDependency dependencies[2];
-		dependencies[0] = {
-			.srcSubpass		 = VK_SUBPASS_EXTERNAL,
-			.dstSubpass		 = 0,
-			.srcStageMask	 = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			.dstStageMask	 = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.srcAccessMask	 = VK_ACCESS_MEMORY_READ_BIT,
-			.dstAccessMask	 = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-			.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-		};
-
-		dependencies[1] = {
-			.srcSubpass		 = 0,
-			.dstSubpass		 = VK_SUBPASS_EXTERNAL,
-			.srcStageMask	 = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-			.dstStageMask	 = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-			.srcAccessMask	 = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-			.dstAccessMask	 = VK_ACCESS_MEMORY_READ_BIT,
-			.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-		};
-
-		// Bit mask for which view is rendering
-		const uint32_t viewmask			= 0b00000011;
-		const uint32_t correlation_mask = 0b00000011;
-
-		// Multiview renderpass creation
-		VkRenderPassMultiviewCreateInfo renderpass_multiview_ci = {
-			.sType				  = VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO,
-			.pNext				  = nullptr,
-			.subpassCount		  = 1,
-			.pViewMasks			  = &viewmask,
-			.correlationMaskCount = 1,
-			.pCorrelationMasks	  = &correlation_mask,
-		};
-
-
-		VkRenderPassCreateInfo renderpass_ci = {
-			.sType			 = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-			.pNext			 = &renderpass_multiview_ci,
-			.flags			 = 0,
-			.attachmentCount = 2,
-			.pAttachments	 = attachments,
-			.subpassCount	 = 1,
-			.pSubpasses		 = &subpass_description,
-			.dependencyCount = 2,
-			.pDependencies	 = dependencies,
-		};
-
-		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderpass_ci, nullptr, &multiview_pass.renderpass));
-	}
-
-	// Framebuffer creation
-	{
-		VkImageView fbo_attachments[] = {multiview_pass.colour.view, multiview_pass.depth.view};
-
-		VkFramebufferCreateInfo fbo_ci = {
-			.sType			 = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.pNext			 = nullptr,
-			.flags			 = 0,
-			.renderPass		 = multiview_pass.renderpass,
-			.attachmentCount = 2,
-			.pAttachments	 = fbo_attachments,
-			.width			 = SERVERWIDTH,
-			.height			 = SERVERHEIGHT,
-			.layers			 = 1,
-		};
-		VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbo_ci, nullptr, &multiview_pass.framebuffer));
-	}
-}
-
-
 void VulkanExample::buildCommandBuffers()
 {
-	int32_t halfwidth = width / 2;
-	int32_t quarterwidth = width / 4;
+	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
-	// View display rendering
+	VkClearValue clearValues[2];
+	clearValues[0].color		= defaultClearColor;
+	clearValues[1].depthStencil = {1.0f, 0};
+
+	VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
+	renderPassBeginInfo.renderPass				 = renderPass;
+	renderPassBeginInfo.renderArea.offset.x		 = 0;
+	renderPassBeginInfo.renderArea.offset.y		 = 0;
+	renderPassBeginInfo.renderArea.extent.width	 = width;
+	renderPassBeginInfo.renderArea.extent.height = height;
+	renderPassBeginInfo.clearValueCount			 = 2;
+	renderPassBeginInfo.pClearValues			 = clearValues;
+
+	VkViewport viewport = vks::initializers::viewport((float) width, (float) height, 0.0f, 1.0f);
+	VkRect2D scissor	= vks::initializers::rect2D(width, height, 0, 0);
+
+	for(int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 	{
-		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
+		renderPassBeginInfo.framebuffer = frameBuffers[i];
+		VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
 
-		VkClearValue clearValues[2];
-		clearValues[0].color		= defaultClearColor;
-		clearValues[1].depthStencil = {1.0f, 0};
+		vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
+		vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &scissor);
 
-		VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass				 = renderPass;
-		renderPassBeginInfo.renderArea.offset.x		 = 0;
-		renderPassBeginInfo.renderArea.offset.y		 = 0;
-		renderPassBeginInfo.renderArea.extent.width	 = width;
-		renderPassBeginInfo.renderArea.extent.height = height;
-		renderPassBeginInfo.clearValueCount			 = 2;
-		renderPassBeginInfo.pClearValues			 = clearValues;
+		// Bind scene matrices descriptor to set 0
+		vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1, &descriptor_set, 0, nullptr);
 
-		for(int32_t i = 0; i < drawCmdBuffers.size(); ++i)
-		{
-			renderPassBeginInfo.framebuffer = frameBuffers[i];
+		// POI: Draw the glTF scene
+		glTFScene.draw(drawCmdBuffers[i], pipeline_layout);
 
-			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
-			vkCmdBeginRenderPass(drawCmdBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-			VkViewport viewport = vks::initializers::viewport((float) width / 2.0f, (float) height, 0.0f, 1.0f);
-			VkRect2D leftmost_scissor = vks::initializers::rect2D(quarterwidth, height, 0, 0);
-			VkRect2D leftmid_scissor = vks::initializers::rect2D(quarterwidth, height, quarterwidth, 0);
-			VkRect2D rightmid_scissor = vks::initializers::rect2D(quarterwidth, height, halfwidth, 0);
-			VkRect2D rightmost_scissor = vks::initializers::rect2D(quarterwidth, height, halfwidth + quarterwidth, 0);
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-			// Bind descriptor set
-			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.viewdisp, 0, 1, &descriptor_sets.viewdisp, 0, nullptr);
-
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[0]);
-
-			// Left eye
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmost_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-			
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmid_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-			
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmid_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-			
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmost_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-		
-		
-			// Right eye
-			viewport.x = (float) width / 2.0f;
-			leftmost_scissor.offset.x += width / 2;
-			leftmid_scissor.offset.x += width / 2;
-			rightmid_scissor.offset.x += width / 2;
-			rightmost_scissor.offset.x += width / 2;
-
-			vkCmdSetViewport(drawCmdBuffers[i], 0, 1, &viewport);
-
-			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, viewdisp_pipelines[1]);
-
-
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmost_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-			
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &leftmid_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-			
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmid_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-			
-			vkCmdSetScissor(drawCmdBuffers[i], 0, 1, &rightmost_scissor);
-			vkCmdDraw(drawCmdBuffers[i], 3, 1, 0, 0);
-
-			// Comment out the drawUI IN THIS VIEWDISP pipeline to not draw the UI.
-			// DO NOT drawUI in the multiview pass.
-			drawUI(drawCmdBuffers[i]);
-			vkCmdEndRenderPass(drawCmdBuffers[i]);
-			VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
-		}
+		drawUI(drawCmdBuffers[i]);
+		vkCmdEndRenderPass(drawCmdBuffers[i]);
+		VK_CHECK_RESULT(vkEndCommandBuffer(drawCmdBuffers[i]));
 	}
-
-
-	// Multiview GLTF rendering
-	{
-		multiview_pass.command_buffers.resize(drawCmdBuffers.size());
-		VkCommandBufferAllocateInfo cmdbuf_ai = vks::initializers::commandBufferAllocateInfo(cmdPool, VK_COMMAND_BUFFER_LEVEL_PRIMARY, static_cast<uint32_t>(drawCmdBuffers.size()));
-		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdbuf_ai, multiview_pass.command_buffers.data()));
-
-		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
-
-		VkClearValue clearValues[2];
-		clearValues[0].color = defaultClearColor;
-		clearValues[0].color = {{0.25f, 0.25f, 0.25f, 1.0f}};
-
-		clearValues[1].depthStencil = {1.0f, 0};
-
-		VkRenderPassBeginInfo renderPassBeginInfo	 = vks::initializers::renderPassBeginInfo();
-		renderPassBeginInfo.renderPass				 = multiview_pass.renderpass;
-		renderPassBeginInfo.renderArea.offset.x		 = 0;
-		renderPassBeginInfo.renderArea.offset.y		 = 0;
-		renderPassBeginInfo.renderArea.extent.width	 = DOWN_SWIDTH;
-		renderPassBeginInfo.renderArea.extent.height = DOWN_SHEIGHT;
-		renderPassBeginInfo.clearValueCount			 = 2;
-		renderPassBeginInfo.pClearValues			 = clearValues;
-
-		const VkViewport viewport = vks::initializers::viewport((float) DOWN_SWIDTH, (float) DOWN_SHEIGHT, 0.0f, 1.0f);
-		const VkRect2D scissor	  = vks::initializers::rect2D(DOWN_SWIDTH, DOWN_SHEIGHT, 0, 0);
-
-		for(int32_t i = 0; i < multiview_pass.command_buffers.size(); ++i)
-		{
-			renderPassBeginInfo.framebuffer = multiview_pass.framebuffer;
-			VK_CHECK_RESULT(vkBeginCommandBuffer(multiview_pass.command_buffers[i], &cmdBufInfo));
-
-			vkCmdBeginRenderPass(multiview_pass.command_buffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-			vkCmdSetViewport(multiview_pass.command_buffers[i], 0, 1, &viewport);
-			vkCmdSetScissor(multiview_pass.command_buffers[i], 0, 1, &scissor);
-
-			// Bind scene matrices descriptor to set 0
-			vkCmdBindDescriptorSets(multiview_pass.command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layouts.multiview, 0, 1, &descriptor_sets.multiview, 0, nullptr);
-
-			// POI: Draw the glTF scene
-			glTFScene.draw(multiview_pass.command_buffers[i], pipeline_layouts.multiview);
-
-			vkCmdEndRenderPass(multiview_pass.command_buffers[i]);
-			VK_CHECK_RESULT(vkEndCommandBuffer(multiview_pass.command_buffers[i]));
-		}
-	}
-
-
-	//write_server_image_to_file(std::to_string(currentBuffer));
-
-	// Copy server image into the current swapchain image
 }
 
-void VulkanExample::write_server_image_to_file(std::string name)
-{
-
-
-
-	std::string filename = "tmpserver_" + name + " " + std::to_string(currentBuffer) + ".ppm";
-	std::ofstream file(filename, std::ios::out | std::ios::binary);
-	file << "P6\n"
-		 << FOVEAWIDTH << "\n"
-		 << FOVEAHEIGHT << "\n"
-		 << 255 << "\n";
-	/*for(int i = 0; i < FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t); i += 3)
-	{
-		file.write((char *) server_image.data, 3);
-		server_image.data += 3;
-	}*/
-
-	/*
-	while(server_image.data != nullptr)
-	{
-		file.write((char*) server_image.data, 1);
-		server_image.data++;
-	}
-
-	/*for(uint32_t y = 0; y < FOVEAHEIGHT; y++)
-	{
-		uint32_t *row = (uint32_t *) server_image.data;
-		for(uint32_t x = 0; x < FOVEAWIDTH; x++)
-		{
-			file.write((char *) row, 3);
-			row++;
-		}
-	}*/
-
-	//file.close();
-}
 
 void VulkanExample::loadglTFFile(std::string filename)
 {
@@ -991,9 +575,9 @@ void VulkanExample::loadAssets()
 void VulkanExample::setupDescriptors()
 {
 	/*
-          This sample uses separate descriptor sets (and layouts) for the
-     matrices and materials (textures)
-  	*/
+		  This sample uses separate descriptor sets (and layouts) for the
+	 matrices and materials (textures)
+	*/
 
 	// ========================================================================
 	//							SETUP FOR POOL
@@ -1003,11 +587,11 @@ void VulkanExample::setupDescriptors()
 	// normal maps
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2),
-		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFScene.materials.size()) * 2 + 3), // +1 for multiview
+		vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(glTFScene.materials.size()) * 2), // +1 for multiview
 	};
 
 	// One set for matrices and one per model image/texture
-	const uint32_t maxSetCount					  = static_cast<uint32_t>(glTFScene.images.size()) + 3;
+	const uint32_t maxSetCount					  = static_cast<uint32_t>(glTFScene.images.size()) + 1;
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = vks::initializers::descriptorPoolCreateInfo(poolSizes, maxSetCount);
 	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 
@@ -1043,7 +627,7 @@ void VulkanExample::setupDescriptors()
 
 
 	// ========================================================================
-	//							MULTIVIEW PIPELINE LAYOUT
+	//							GLTF PIPELINE LAYOUT
 	// ========================================================================
 
 
@@ -1058,13 +642,13 @@ void VulkanExample::setupDescriptors()
 	// Push constant ranges are part of the pipeline layout
 	pipelineLayoutCI.pushConstantRangeCount = 1;
 	pipelineLayoutCI.pPushConstantRanges	= &pushConstantRange;
-	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipeline_layouts.multiview));
+	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipeline_layout));
 
 	// Descriptor set for scene matrices
 	VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.matrices, 1);
-	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptor_sets.multiview));
+	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptor_set));
 
-	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptor_sets.multiview, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &shaderData.buffer.descriptor);
+	VkWriteDescriptorSet writeDescriptorSet = vks::initializers::writeDescriptorSet(descriptor_set, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, &shaderData.buffer.descriptor);
 	vkUpdateDescriptorSets(device, 1, &writeDescriptorSet, 0, nullptr);
 
 	// Descriptor sets for materials
@@ -1083,71 +667,10 @@ void VulkanExample::setupDescriptors()
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
-
-
-	// Viewdisplay pipeline stuff
-
-	// ========================================================================
-	//							VIEWDISP SET LAYOUT
-	// ========================================================================
-	// descriptor set layout
-	std::vector<VkDescriptorSetLayoutBinding> viewdisp_layout_bindings = {
-		vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0, 1),
-	};
-
-	VkDescriptorSetLayoutCreateInfo viewdisp_desc_layout = vks::initializers::descriptorSetLayoutCreateInfo(viewdisp_layout_bindings);
-	VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &viewdisp_desc_layout, nullptr, &descriptor_set_layouts.viewdisp));
-
-	// ========================================================================
-	//							VIEWDISP PIPELINE LAYOUT
-	// ========================================================================
-
-	// pipeline layout
-	VkPipelineLayoutCreateInfo viewdisp_pl_layout_ci = vks::initializers::pipelineLayoutCreateInfo(&descriptor_set_layouts.viewdisp, 1);
-	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &viewdisp_pl_layout_ci, nullptr, &pipeline_layouts.viewdisp));
-
-
-	// Setup viewdisp descriptor set
-	VkDescriptorSetAllocateInfo set_ai = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptor_set_layouts.viewdisp, 1);
-	VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &set_ai, &descriptor_sets.viewdisp));
-
-	// Write descsets for viewdisp pipeline
-	std::vector<VkWriteDescriptorSet> viewdisp_write_desc_sets = {
-		vks::initializers::writeDescriptorSet(descriptor_sets.viewdisp, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &multiview_pass.descriptor),
-	};
-	vkUpdateDescriptorSets(device, viewdisp_write_desc_sets.size(), viewdisp_write_desc_sets.data(), 0, nullptr);
 }
 
 void VulkanExample::preparePipelines()
 {
-	// ========================================================================
-	//							MULTIVIEW PROPERTIES SETUP
-	// ========================================================================
-	VkPhysicalDeviceFeatures2KHR multiview_device_features2{};
-	VkPhysicalDeviceMultiviewFeaturesKHR multiview_extension_features{};
-	multiview_extension_features.sType									= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES_KHR;
-	multiview_device_features2.sType									= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
-	multiview_device_features2.pNext									= &multiview_extension_features;
-	PFN_vkGetPhysicalDeviceFeatures2KHR vkGetPhysicalDeviceFeatures2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
-	vkGetPhysicalDeviceFeatures2KHR(physicalDevice, &multiview_device_features2);
-	std::cout << "Multiview features:" << std::endl;
-	std::cout << "\tmultiview = " << multiview_extension_features.multiview << std::endl;
-	std::cout << "\tmultiviewGeometryShader = " << multiview_extension_features.multiviewGeometryShader << std::endl;
-	std::cout << "\tmultiviewTessellationShader = " << multiview_extension_features.multiviewTessellationShader << std::endl;
-	std::cout << std::endl;
-
-	VkPhysicalDeviceProperties2KHR device_properties2{};
-	VkPhysicalDeviceMultiviewPropertiesKHR extension_properties{};
-	extension_properties.sType												= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES_KHR;
-	device_properties2.sType												= VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR;
-	device_properties2.pNext												= &extension_properties;
-	PFN_vkGetPhysicalDeviceProperties2KHR vkGetPhysicalDeviceProperties2KHR = reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
-	vkGetPhysicalDeviceProperties2KHR(physicalDevice, &device_properties2);
-	std::cout << "Multiview properties:" << std::endl;
-	std::cout << "\tmaxMultiviewViewCount = " << extension_properties.maxMultiviewViewCount << std::endl;
-	std::cout << "\tmaxMultiviewInstanceIndex = " << extension_properties.maxMultiviewInstanceIndex << std::endl;
-
-
 	// ========================================================================
 	//							GENERAL GRAPHICS PIPELINE SETUP
 	// ========================================================================
@@ -1180,7 +703,7 @@ void VulkanExample::preparePipelines()
 	};
 	VkPipelineVertexInputStateCreateInfo vertexInputStateCI = vks::initializers::pipelineVertexInputStateCreateInfo(vertexInputBindings, vertexInputAttributes);
 
-	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipeline_layouts.multiview, multiview_pass.renderpass, 0);
+	VkGraphicsPipelineCreateInfo pipelineCI = vks::initializers::pipelineCreateInfo(pipeline_layout, renderPass, 0);
 	pipelineCI.pVertexInputState			= &vertexInputStateCI;
 	pipelineCI.pInputAssemblyState			= &inputAssemblyStateCI;
 	pipelineCI.pRasterizationState			= &rasterizationStateCI;
@@ -1222,70 +745,10 @@ void VulkanExample::preparePipelines()
 
 		// For double sided materials, culling will be disabled
 		rasterizationStateCI.cullMode = material.doubleSided ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE;
-
-		/*
-		Possile issues: viewdir with inNormals either with viewdir or with normals flipped
-
-		*/
-
-
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &material.pipeline));
 	}
-
-
-	// ========================================================================
-	//							VIEWDISP GRAPHICS PIPELINE SETUP
-	// ========================================================================
-
-	// Set the rasterization state cullmode to frontbit
-	rasterizationStateCI.cullMode = VK_CULL_MODE_FRONT_BIT;
-
-	// Viewdisp pipelines setup
-	// Also make the semaphore
-	VkSemaphoreCreateInfo semaphore_ci = vks::initializers::semaphoreCreateInfo();
-	VK_CHECK_RESULT(vkCreateSemaphore(device, &semaphore_ci, nullptr, &multiview_pass.semaphore));
-
-	// Viewdisplay for multiview
-	VkPipelineShaderStageCreateInfo viewdisp_shader_stages[2];
-	float multiview_array_layer								   = 0.0f;
-	VkSpecializationMapEntry viewdisp_specialization_map_entry = {0, 0, sizeof(float)};
-	VkSpecializationInfo viewdisp_specialization_info		   = {
-		 .mapEntryCount = 1,
-		 .pMapEntries	= &viewdisp_specialization_map_entry,
-		 .dataSize		= sizeof(float),
-		 .pData			= &multiview_array_layer,
-	 };
-
-
-	for(uint32_t i = 0; i < 2; i++)
-	{
-		viewdisp_shader_stages[0]					  = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-		viewdisp_shader_stages[1]					  = loadShader(getShadersPath() + "gltfscenerendering_client/viewdisplay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
-		viewdisp_shader_stages[1].pSpecializationInfo = &viewdisp_specialization_info;
-		multiview_array_layer						  = (float) (1 - i);
-
-		VkPipelineVertexInputStateCreateInfo empty_input_state = vks::initializers::pipelineVertexInputStateCreateInfo();
-		pipelineCI.pVertexInputState						   = &empty_input_state;
-		pipelineCI.layout									   = pipeline_layouts.viewdisp;
-		pipelineCI.pStages									   = viewdisp_shader_stages;
-		pipelineCI.renderPass								   = renderPass;
-		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &viewdisp_pipelines[i]));
-	}
 }
 
-void VulkanExample::create_server_image_buffer()
-{
-	for(uint32_t i = 0; i < 2; i++)
-	{
-
-
-		VkDeviceSize image_buffer_size = FOVEAWIDTH * FOVEAHEIGHT * sizeof(uint32_t);
-		VK_CHECK_RESULT(vulkanDevice->createBuffer(
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			&server_image[i].buffer, image_buffer_size));
-	}
-}
 
 void VulkanExample::prepareUniformBuffers()
 {
@@ -1369,82 +832,23 @@ void VulkanExample::prepare()
 		printf("mutex initialization unsuccessful\n");
 		return;
 	}
-	client.connect_to_server(PORT);
 	VulkanExampleBase::prepare();
 	loadAssets();
-	setup_multiview();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	create_server_image_buffer();
 	VulkanExample::buildCommandBuffers();
-
-	VkFenceCreateInfo multiview_fence_ci = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-	multiview_pass.wait_fences.resize(multiview_pass.command_buffers.size());
-	for(uint32_t i = 0; i < multiview_pass.wait_fences.size(); i++)
-	{
-		VK_CHECK_RESULT(vkCreateFence(device, &multiview_fence_ci, nullptr, &multiview_pass.wait_fences[i]));
-	}
-
-
 	prepared = true;
 }
 
-void VulkanExample::draw()
-{
-	VulkanExampleBase::prepareFrame();
-
-	buildCommandBuffers();
-
-
-	// Multiview offscreen render
-
-	VK_CHECK_RESULT(vkWaitForFences(device, 1, &multiview_pass.wait_fences[currentBuffer], VK_TRUE, UINT64_MAX));
-	VK_CHECK_RESULT(vkResetFences(device, 1, &multiview_pass.wait_fences[currentBuffer]));
-	submitInfo.pWaitSemaphores	  = &semaphores.presentComplete;
-	submitInfo.pSignalSemaphores  = &multiview_pass.semaphore;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers	  = &multiview_pass.command_buffers[currentBuffer];
-	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, multiview_pass.wait_fences[currentBuffer]));
-
-
-	// View display
-	VK_CHECK_RESULT(vkWaitForFences(device, 1, &waitFences[currentBuffer], VK_TRUE, UINT64_MAX));
-	VK_CHECK_RESULT(vkResetFences(device, 1, &waitFences[currentBuffer]));
-	submitInfo.pWaitSemaphores	  = &multiview_pass.semaphore;
-	submitInfo.pSignalSemaphores  = &semaphores.renderComplete;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers	  = &drawCmdBuffers[currentBuffer];
-	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, waitFences[currentBuffer]));
-
-	// Submit frame to be drawn
-	VulkanExampleBase::submitFrame();
-
-	total_fps += lastFPS;
-	avg_fps = total_fps / num_frames;
-	printf("%f ms/frame (%f fps)\n", (1000.0f / flastFPS), flastFPS);
-}
 
 void VulkanExample::render()
 {
-	timeval tstart;
-	timeval tend;
-	gettimeofday(&tstart, nullptr);
-	draw();
+	renderFrame();
 
 	if(camera.updated)
 	{
 		updateUniformBuffers();
-	}
-
-	gettimeofday(&tend, nullptr);
-	ms_per_frames.push_back(vku::time_difference(tstart, tend));
-	printf("Ms per frame: %f\n", ms_per_frames[ms_per_frames.size() - 1]);
-
-	if(ms_per_frames.size() == 1024)
-	{
-		ssize_t nbytes = 1024 * sizeof(float);
-		send(client.socket_fd[0], ms_per_frames.data(), nbytes, 0);
 	}
 }
 

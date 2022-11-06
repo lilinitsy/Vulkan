@@ -24,22 +24,20 @@
 #endif
 #include "tiny_gltf.h"
 
-#include "client.h"
 #include "vk_utils.h"
 #include "vulkanexamplebase.h"
 
 #define ENABLE_VALIDATION true
-const uint32_t PORT[2] = {1234, 1235};
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH	= 2560; // 512
-const uint32_t SERVERHEIGHT = 1440; // 512
-const uint32_t CLIENTWIDTH	= 2560;
-const uint32_t CLIENTHEIGHT = 1440;
+const uint32_t SERVERWIDTH	= 1920; // 512
+const uint32_t SERVERHEIGHT = 1080; // 512
+const uint32_t CLIENTWIDTH	= 1920;
+const uint32_t CLIENTHEIGHT = 1080;
 
 // downsampled width
-const uint32_t DOWN_SWIDTH	= 1440;
-const uint32_t DOWN_SHEIGHT = 810;
+const uint32_t DOWN_SWIDTH	= 1920;
+const uint32_t DOWN_SHEIGHT = 1080;
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 320;
@@ -184,25 +182,14 @@ class VulkanExample : public VulkanExampleBase
 		} values;
 	} shaderData;
 
-
-	struct
-	{
-		VkPipelineLayout multiview;
-		VkPipelineLayout viewdisp;
-	} pipeline_layouts;
-
-	struct
-	{
-		VkDescriptorSet multiview;
-		VkDescriptorSet viewdisp;
-	} descriptor_sets;
+	VkPipelineLayout pipeline_layout;
+	VkDescriptorSet descriptor_set;
 
 
 	struct
 	{
 		VkDescriptorSetLayout matrices;
 		VkDescriptorSetLayout textures;
-		VkDescriptorSetLayout viewdisp;
 	} descriptor_set_layouts;
 
 	// Imported stuff from multiview/multiview.cpp
@@ -213,41 +200,6 @@ class VulkanExample : public VulkanExampleBase
 		VkImageView view;
 	};
 
-	VkPipeline viewdisp_pipelines[2];
-	VkPipeline material_pipeline;
-
-	struct MultiviewPass
-	{
-		FrameBufferAttachment colour;
-		FrameBufferAttachment depth;
-		VkFramebuffer framebuffer;
-		VkRenderPass renderpass;
-		VkDescriptorImageInfo descriptor;
-		VkSampler sampler;
-		VkSemaphore semaphore;
-		std::vector<VkCommandBuffer> command_buffers;
-		std::vector<VkFence> wait_fences;
-	} multiview_pass;
-
-	// Client[0] will be left eye, client[1] will be right eye
-	Client client;
-	std::vector<float> ms_per_frames;
-
-	struct ServerImage
-	{
-		vks::Buffer buffer;
-		void *data;
-	};
-
-	int active_serverimage_index;
-	ServerImage server_image[2];
-
-	struct
-	{
-		pthread_t left_receive_image;
-		pthread_t right_receive_image;
-		pthread_t send_thread;
-	} vk_pthread;
 
 	/*
 	 * In a more robust system that uses multiple render passes,
@@ -256,13 +208,6 @@ class VulkanExample : public VulkanExampleBase
 	 * to a last renderpass. But, since we'll just be copying
 	 * directly into the memory, those won't be needed.
 	*/
-
-	float avg_fps	= 0.0f;
-	float total_fps = 0.0f;
-	int num_frames	= 0;
-
-	uint8_t left_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
-	uint8_t right_servbuf[FOVEAWIDTH * FOVEAHEIGHT * 3];
 
 
 	VkPhysicalDeviceMultiviewFeaturesKHR physical_device_multiview_features{};
@@ -296,10 +241,6 @@ class VulkanExample : public VulkanExampleBase
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);
-
-	//void *receive_swapchain_image(void *devicerenderer);
-	void create_server_image_buffer();
-	void write_server_image_to_file(std::string name);
 
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
