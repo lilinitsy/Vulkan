@@ -17,36 +17,38 @@ layout(location = 5) out vec4 outTangent;
 layout(location = 6) out vec3 outModelPos;
 
 
-layout(set = 0, binding = 0) uniform UBO 
+layout(set = 0, binding = 0) uniform UBO
 {
-	mat4 projection[2];
-	mat4 view[2];
+	mat4 projection;
+	mat4 view;
 	vec4 lightPos;
 	vec4 viewpos;
-} ubo;
+}
+ubo;
 
 layout(push_constant) uniform PushConsts
 {
 	mat4 model;
-} primitive;
+}
+primitive;
 
-void main() 
+void main()
 {
-	outColor = inColor;
-	outUV = inUV;
-	outNormal = mat3(ubo.view[gl_ViewIndex] * primitive.model) * inNormal;
+	outColor	= inColor;
+	outUV		= inUV;
+	outNormal	= mat3(ubo.view * primitive.model) * inNormal;
 	outModelPos = vec3(primitive.model * vec4(inPos.xyz, 1.0));
 
-	//vec4 tmp_pos = vec4(-inPos.x, -inPos.y, inPos.z, 1.0);
-	vec4 pos = primitive.model * vec4(inPos, 1.0);
-	vec4 worldPos = (ubo.view[gl_ViewIndex] * primitive.model) * pos;
-		
-	vec3 lPos = vec3((ubo.view[gl_ViewIndex] * primitive.model) * ubo.lightPos);
+	// vec4 tmp_pos = vec4(-inPos.x, -inPos.y, inPos.z, 1.0);
+	vec4 pos	  = primitive.model * vec4(inPos, 1.0);
+	vec4 worldPos = (ubo.view * primitive.model) * pos;
+
+	vec3 lPos	= vec3((ubo.view * primitive.model) * ubo.lightPos);
 	outLightVec = lPos - worldPos.xyz;
-	//outViewVec = -worldPos.xyz;	
+	// outViewVec = -worldPos.xyz;
 	outViewVec = ubo.viewpos.xyz - pos.xyz;
 	outTangent = inTangent;
-	
-	gl_Position = ubo.projection[gl_ViewIndex] * ubo.view[gl_ViewIndex] * primitive.model * vec4(inPos.xyz, 1.0);
-	//gl_Position = ubo.projection[gl_ViewIndex] * worldPos;
+
+	gl_Position = ubo.projection * ubo.view * primitive.model * vec4(inPos.xyz, 1.0);
+	// gl_Position = ubo.projection * worldPos;
 }

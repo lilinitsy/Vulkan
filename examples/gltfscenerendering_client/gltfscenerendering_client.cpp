@@ -767,7 +767,7 @@ void VulkanExample::updateUniformBuffers()
 	// See http://paulbourke.net/stereographics/stereorender/
 
 	// Calculate some variables
-	float aspectRatio = (float) (width * 0.5f) / (float) height;
+	float aspectRatio = (float) width / (float) height;
 	float wd2		  = zNear * tan(glm::radians(fov / 2.0f));
 	float ndfl		  = zNear / focalLength;
 	float left, right;
@@ -799,17 +799,8 @@ void VulkanExample::updateUniformBuffers()
 
 	transM = glm::translate(glm::mat4(1.0f), camera.position - camRight * (eyeSeparation / 2.0f));
 
-	shaderData.values.projection[0] = glm::frustum(left, right, bottom, top, zNear, zFar);
-	shaderData.values.view[0]		= rotM * transM;
-
-	// Right eye
-	left  = -aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
-	right = aspectRatio * wd2 - 0.5f * eyeSeparation * ndfl;
-
-	transM = glm::translate(glm::mat4(1.0f), camera.position + camRight * (eyeSeparation / 2.0f));
-
-	shaderData.values.projection[1] = glm::frustum(left, right, bottom, top, zNear, zFar);
-	shaderData.values.view[1]		= rotM * transM;
+	shaderData.values.projection = glm::frustum(left, right, bottom, top, zNear, zFar);
+	shaderData.values.view		= rotM * transM;
 
 	memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 }
