@@ -719,6 +719,9 @@ void VulkanExample::preparePipelines()
 	shaderStages[0] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
+	// Second shader stages: Get average colour of images as a baseline, compare to that
+	
+
 
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
 	// each material using the properties of that material
