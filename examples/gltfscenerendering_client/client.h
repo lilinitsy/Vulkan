@@ -43,9 +43,9 @@ struct Client
 				.sin_port   = htons(static_cast<in_port_t>(PORT[i])),
 				//.sin_addr	= inet_addr("192.168.1.6"),
 			};
-			inet_aton("192.168.1.5", (in_addr*) &server_address.sin_addr.s_addr);
+			inet_aton("192.168.1.10", (in_addr*) &server_address.sin_addr.s_addr);
 
-			inet_pton(AF_INET, "192.168.1.5", &(server_address.sin_addr));
+			inet_pton(AF_INET, "192.168.1.10", &(server_address.sin_addr));
 			printf("Connected to server\n");
 
 
