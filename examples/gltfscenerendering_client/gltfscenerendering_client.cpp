@@ -17,6 +17,7 @@
 #include <sys/time.h>
 
 #include "gltfscenerendering_client.h"
+#include "vulkan/vulkan_core.h"
 
 /*
 		Vulkan glTF scene class
@@ -572,6 +573,167 @@ void VulkanExample::loadAssets()
 	loadglTFFile(getAssetPath() + "models/sponza/sponza.gltf");
 }
 
+
+void VulkanExample::setup_offscreen_pass()
+{
+	offscreen_pass.width  = width;
+	offscreen_pass.height = height;
+
+	// Colour attachment setup
+	{
+		// Image setup
+		VkImageCreateInfo image_ci = {
+			.sType		 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+			.pNext		 = nullptr,
+			.flags		 = 0,
+			.imageType	 = VK_IMAGE_TYPE_2D,
+			.format		 = swapChain.colorFormat,
+			.extent		 = {WIDTH, HEIGHT, 1},
+			.mipLevels	 = 1,
+			.arrayLayers = 1,
+			.samples	 = VK_SAMPLE_COUNT_1_BIT,
+			.tiling		 = VK_IMAGE_TILING_OPTIMAL,
+			.usage		 = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		};
+		VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &offscreen_pass.colour.image));
+
+		VkMemoryRequirements memory_requirements;
+		vkGetImageMemoryRequirements(device, offscreen_pass.colour.image, &memory_requirements);
+
+		VkMemoryAllocateInfo memory_ai = {
+			.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize	 = memory_requirements.size,
+			.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+		};
+		VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &offscreen_pass.colour.memory));
+		VK_CHECK_RESULT(vkBindImageMemory(device, offscreen_pass.colour.image, offscreen_pass.colour.memory, 0));
+
+
+		// Colour image view setup
+		VkImageSubresourceRange colour_subresource = {
+			.aspectMask		= VK_IMAGE_ASPECT_COLOR_BIT,
+			.baseMipLevel	= 0,
+			.levelCount		= 1,
+			.baseArrayLayer = 0,
+			.layerCount		= 1,
+		};
+
+		VkImageViewCreateInfo image_view_ci = {
+			.sType	  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.pNext	  = nullptr,
+			.flags	  = 0,
+			.image	  = offscreen_pass.colour.image,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format	  = swapChain.colorFormat;
+		.subresourceRange = colour_subresource,
+	};
+	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &offscreen_pass.colour.view));
+
+	VkSamplerCreateInfo sampler_ci = {
+		.sType		   = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.pNext		   = nullptr,
+		.flags		   = 0,
+		.magFilter	   = VK_FILTER_NEAREST,
+		.minFilter	   = VK_FILTER_LINEAR,
+		.mipmapMode	   = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+		.addressModeU  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeV  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.addressModeW  = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
+		.mipLodBias	   = 0.0f,
+		.maxAnisotropy = 1.0f,
+		.minLod		   = 0.0f,
+		.maxLod		   = 1.0f,
+		.borderColor   = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE,
+	};
+	VK_CHECK_RESULT(vkCreateSampler(device, &sampler_ci, nullptr, &multiview_pass.sampler));
+
+	offscreen_pass.descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	offscreen_pass.descriptor.imageView	  = offscreen_pass.colour.view,
+	offscreen_pass.descriptor.sampler	  = offscreen_pass.sampler;
+}
+
+
+// Depth stenchi attachment setup
+{
+	// Image setup
+	VkImageCreateInfo image_ci = {
+		.sType		 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.pNext		 = nullptr,
+		.flags		 = 0,
+		.imageType	 = VK_IMAGE_TYPE_2D,
+		.format		 = depthFormat, // wonder if this needs to be modified
+		.extent		 = {WIDTH, HEIGHT, 1},
+		.mipLevels	 = 1,
+		.arrayLayers = 1,
+		.samples	 = VK_SAMPLE_COUNT_1_BIT,
+		.tiling		 = VK_IMAGE_TILING_OPTIMAL,
+		.usage		 = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+	};
+	VK_CHECK_RESULT(vkCreateImage(device, &image_ci, nullptr, &offscreen_pass.depth.image));
+
+	VkMemoryRequirements memory_requirements;
+	vkGetImageMemoryRequirements(device, offscreen_pass.depth.image, &memory_requirements);
+
+	VkMemoryAllocateInfo memory_ai = {
+		.sType			 = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize	 = memory_requirements.size,
+		.memoryTypeIndex = vulkanDevice->getMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+	};
+	VK_CHECK_RESULT(vkAllocateMemory(device, &memory_ai, nullptr, &offscreen_pass.depth.memory));
+	VK_CHECK_RESULT(vkBindImageMemory(device, offscreen_pass.depth.image, offscreen_pass.depth.memory, 0));
+
+	// Image view setup
+	VkImageSubresourceRange depth_stencil_subresource = {
+		.aspectMask		= VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+		.baseMipLevel	= 0,
+		.levelCount		= 1,
+		.baseArrayLayer = 0,
+		.layerCount		= 1,
+	};
+
+	VkImageViewCreateInfo image_view_ci = {
+		.sType	  = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.pNext	  = nullptr,
+		.flags	  = 0,
+		.image	  = offscreen_pass.depth.image,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+	};
+	VK_CHECK_RESULT(vkCreateImageView(device, &image_view_ci, nullptr, &offscreen_pass.depth.view));
+}
+
+// Offscreen renderpass
+{
+	VkAttachmentDescription attachment_descriptions[2];
+
+	// Colour attachment
+	attachment_descriptions[0] = {
+		.flags			= 0,
+		.format			= swapChain.colorFormat, // may need to be changed to UNORM?
+		.samples		= VK_SAMPLE_COUNT_1_BIT,
+		.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp		= VK_ATTACHMENT_STORE_OP_STORE,
+		.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.stencilStoreOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout	= VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	};
+
+	// Depth attachment
+	attachment_descriptions[1] = {
+		.flags			= 0,
+		.format			= depthFormat,
+		.samples		= VK_SAMPLE_COUNT_1_BIT,
+		.loadOp			= VK_ATTACHMENT_LOAD_OP_CLEAR,
+		.storeOp		= VK_ATTACHMENT_STORE_OP_DONT_CARE,
+		.stencilLoadOp	= VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.stencilStoreOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+		.initialLayout	= VK_IMAGE_LAYOUT_UNDEFINED,
+		.finalLayout	= VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+	};
+}
+}
+
+
 void VulkanExample::setupDescriptors()
 {
 	/*
@@ -720,7 +882,7 @@ void VulkanExample::preparePipelines()
 	shaderStages[1] = loadShader(getShadersPath() + "gltfscenerendering_client/multiview.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
 
 	// Second shader stages: Get average colour of images as a baseline, compare to that
-	
+
 
 
 	// POI: Instead if using a few fixed pipelines, we create one pipeline for
@@ -803,7 +965,7 @@ void VulkanExample::updateUniformBuffers()
 	transM = glm::translate(glm::mat4(1.0f), camera.position - camRight * (eyeSeparation / 2.0f));
 
 	shaderData.values.projection = glm::frustum(left, right, bottom, top, zNear, zFar);
-	shaderData.values.view		= rotM * transM;
+	shaderData.values.view		 = rotM * transM;
 
 	memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 }

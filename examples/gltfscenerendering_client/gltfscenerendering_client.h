@@ -14,6 +14,7 @@
  * This sample comes with a tutorial, see the README.md in this folder
  */
 
+#include "vulkan/vulkan_core.h"
 #define TINYGLTF_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYGLTF_NO_STB_IMAGE_WRITE
@@ -30,16 +31,8 @@
 #define ENABLE_VALIDATION true
 
 // Offloaded rendering attributes
-const uint32_t SERVERWIDTH	= 1920; // 512
-const uint32_t SERVERHEIGHT = 1080; // 512
-const uint32_t CLIENTWIDTH	= 1920;
-const uint32_t CLIENTHEIGHT = 1080;
-
-// downsampled width
-const uint32_t DOWN_SWIDTH	= 1920;
-const uint32_t DOWN_SHEIGHT = 1080;
-
-// Possibly temp offloaded rendering attributes
+const uint32_t WIDTH	= 1920; // 512
+const uint32_t HEIGHT = 1080; // 512
 const uint32_t FOVEAWIDTH  = 320;
 const uint32_t FOVEAHEIGHT = 240;
 
@@ -182,8 +175,26 @@ class VulkanExample : public VulkanExampleBase
 		} values;
 	} shaderData;
 
-	VkPipelineLayout pipeline_layout;
-	VkDescriptorSet descriptor_set;
+	vks::Buffer offscreen_ubo;
+
+
+	struct
+	{
+		VkPipeline offscreen;
+		VkPipeline postprocess; // the to-screen composite
+	} pipelines;
+
+	struct
+	{
+		VkPipelineLayout offscreen;
+		VkPipelineLayout postprocess;
+	} pipeline_layouts;
+
+	struct
+	{
+		VkDescriptorSet offscreen;
+		VkDescriptorSet postprocess;
+	} descriptor_sets;
 
 
 	struct
@@ -200,6 +211,18 @@ class VulkanExample : public VulkanExampleBase
 		VkImageView view;
 	};
 
+
+	struct OffscreenPass
+	{
+		int32_t width;
+		int32_t height;
+		VkFramebuffer fbo;
+		FrameBufferAttachment colour;
+		FrameBufferAttachment depth;
+		VkRenderPass renderpass;
+		VkSampler sampler;
+		VkDescriptorImageInfo descriptor;
+	} offscreen_pass;
 
 	/*
 	 * In a more robust system that uses multiple render passes,
@@ -236,8 +259,7 @@ class VulkanExample : public VulkanExampleBase
 	void prepare();
 	void draw();
 
-	void setup_multiview();
-	void setup_multisample_target();
+	void setup_offscreen_pass();
 
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout);
 	void transition_image_layout(VkDevice logical_device, VkCommandPool command_pool, VkCommandBuffer command_buffer, VkImage image, VkAccessFlags src_access_mask, VkAccessFlags dst_access_mask, VkImageLayout old_layout, VkImageLayout new_layout, VkPipelineStageFlags src_stage_mask, VkPipelineStageFlags dst_stage_mask);
