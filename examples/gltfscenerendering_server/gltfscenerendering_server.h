@@ -318,6 +318,10 @@ class VulkanExample : public VulkanExampleBase
 	bool should_wait_for_camera_data = true;
 
 	
+	struct
+	{
+		timeval encode_start_time;
+	} tmp_timers;
 
 
 	VulkanExample();

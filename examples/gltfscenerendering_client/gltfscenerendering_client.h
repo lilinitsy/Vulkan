@@ -51,7 +51,7 @@ const uint32_t CLIENTHEIGHT = 1080;
 
 // downsampled width
 const uint32_t DOWN_SWIDTH  = 1440;
-const uint32_t DOWN_SHEIGHT = 810;
+const uint32_t DOWN_SHEIGHT = 648;
 
 // Possibly temp offloaded rendering attributes
 const uint32_t FOVEAWIDTH  = 512;

@@ -855,7 +855,6 @@ static void *begin_video_decoding(void* host_renderer)
 
 	timeval recv_image_start_time;
 	timeval recv_image_end_time;
-	gettimeofday(&recv_image_start_time, nullptr);
 
 
 	uint32_t pktsize[1];
@@ -863,6 +862,7 @@ static void *begin_video_decoding(void* host_renderer)
 	int eof;
 	bool should_break = false;
 
+	gettimeofday(&recv_image_start_time, nullptr);
 	int data_size = recv(ve->client.socket_fd[0], ve->servbuf, pktsize[0], MSG_WAITALL);
 	uint8_t inbuf[pktsize[0] + AV_INPUT_BUFFER_PADDING_SIZE];
 

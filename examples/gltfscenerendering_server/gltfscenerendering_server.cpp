@@ -1322,7 +1322,7 @@ void VulkanExample::prepare()
 // This will only encode one frame at a time
 static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *frame, AVPacket *packet, FILE *outfile)
 {
-	//int ret;
+	timeval encode_end_time;
 
 	int ret = avcodec_send_frame(encode_context, frame);
 	if(ret < 0)
@@ -1338,6 +1338,11 @@ static void encode(VulkanExample *ve, AVCodecContext *encode_context, AVFrame *f
 	}
 
 	ret = avcodec_receive_packet(encode_context, packet);
+
+	gettimeofday(&encode_end_time, nullptr);
+	float encode_time_diff = vku::time_difference(ve->tmp_timers.encode_start_time, encode_end_time);
+	ve->timers.encode_time.push_back(encode_time_diff);
+
 	if(ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
 	{
 		// dbg section
@@ -1414,9 +1419,8 @@ static void *receive_camera_data(void *host_renderer)
 
 static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminance_y, uint8_t *bp_u, uint8_t *rp_v)
 {
-	timeval encode_start_time;
 	timeval encode_end_time;
-	gettimeofday(&encode_start_time, nullptr);
+	gettimeofday(&ve->tmp_timers.encode_start_time, nullptr);
 	VulkanExample *ve = (VulkanExample*) void_encoding_data;
 
 	int i;
@@ -1503,9 +1507,7 @@ static void *begin_video_encoding(void *void_encoding_data) // uint8_t *luminanc
 	
 	vkUnmapMemory(ve->device, ve->foveal_regions.buffer.memory);
 
-	gettimeofday(&encode_end_time, nullptr);
-	float encode_time_diff = vku::time_difference(encode_start_time, encode_end_time);
-	ve->timers.encode_time.push_back(encode_time_diff);
+	// finish encoding timing inside encode()
 
 	//av_frame_free(&ve->encoder.frame);
 
